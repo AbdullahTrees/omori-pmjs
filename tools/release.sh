@@ -1,0 +1,313 @@
+#!/usr/bin/env bash
+# OMORI (PMJS) release pipeline.
+#
+#   tools/release.sh prepare  --version 2026.10.25 --changes "Fixed X; Improved Y"
+#   tools/release.sh check    --version 2026.10.25 [--receipt device.json]
+#   tools/release.sh publish  --version 2026.10.25 --receipt device.json
+#   tools/release.sh status
+#
+# prepare writes docs/releases/<version>.md and CHANGELOG.md, commits and
+# pushes main, then builds share/out/OMORI-PMJS-<version>.zip from that commit.
+# publish verifies the artifact and receipt, tags the commit and creates the
+# GitHub release (latest for a full release, prerelease with --prerelease).
+# The build runs in WSL when wsl.exe is available; GitHub steps use gh.
+set -euo pipefail
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$ROOT"
+
+REPO_SLUG=${REPO_SLUG:-AbdullahTrees/omori-pmjs}
+DISTRO=${WSL_DISTRO:-Ubuntu-22.04}
+TAG_PREFIX=${TAG_PREFIX:-OMORI-PMJS-}
+BRANCH=${BRANCH:-main}
+OUT=share/out
+
+MODE=${1:-help}
+if [ $# -gt 0 ]; then shift; fi
+
+VERSION= CHANGES= CHANGES_FILE= ARTIFACT= RECEIPT=
+PRERELEASE=0 DRY_RUN=0 FORCE=0 ALLOW_UNVERIFIED=0 CO_AUTHOR=0 NO_BUILD=0
+
+usage() {
+  cat <<'EOF'
+Usage: tools/release.sh <command> [options]
+
+Commands:
+  prepare   Write release notes/changelog, commit+push main, build the ZIP.
+  check     Validate an artifact (and optional device receipt) without changes.
+  publish   Tag the source commit and create the GitHub release.
+  status    Show recent GitHub releases.
+  help      This text.
+
+Options:
+  --version VERSION       Release version (default for prepare: YYYY.MM.DD[.N]).
+  --changes TEXT          One-line or semicolon-separated changes (prepare).
+  --changes-file FILE     Read changes from a file (prepare).
+  --artifact FILE         ZIP to check/publish (default share/out/OMORI-PMJS-<version>.zip).
+  --receipt FILE          Device verification receipt (required for a full release).
+  --prerelease            Create a GitHub prerelease; a receipt is optional.
+  --allow-unverified      Full release without a receipt (not recommended).
+  --dry-run               Print what would happen; no writes, commits or releases.
+  --force                 Overwrite an existing notes file in prepare.
+  --no-build              prepare without building the ZIP.
+  --co-author             Add the Claude Code co-author trailer to the release commit.
+  --repo OWNER/REPO       GitHub repository (default AbdullahTrees/omori-pmjs).
+  --branch BRANCH         Branch to release from (default main).
+EOF
+}
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'release: %s\n' "$*" >&2; exit 1; }
+
+have_wsl() { command -v wsl.exe >/dev/null 2>&1; }
+wsl_root() { wsl.exe -d "$DISTRO" -e wslpath -a "$(pwd -W)" | tr -d '\r'; }
+win_path() {
+  local dir
+  dir=$(cd "$(dirname -- "$1")" && pwd -W) || return 1
+  printf '%s/%s\n' "$dir" "$(basename -- "$1")"
+}
+to_wsl() { wsl.exe -d "$DISTRO" -e wslpath -a "$(win_path "$1")" | tr -d '\r'; }
+sha256_of() { sha256sum "$1" | awk '{print $1}'; }
+
+require_clean() {
+  [ -z "$(git status --porcelain)" ] || die "working tree is not clean; commit or stash first"
+}
+
+require_sync() {
+  git fetch --quiet origin "$BRANCH"
+  [ "$(git rev-parse --abbrev-ref HEAD)" = "$BRANCH" ] || die "not on branch $BRANCH"
+  [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$BRANCH")" ] \
+    || die "local $BRANCH is not pushed to origin; push first"
+}
+
+default_version() {
+  local base n v
+  base=$(date +%Y.%m.%d)
+  v=$base
+  n=2
+  while git rev-parse -q --verify "refs/tags/$TAG_PREFIX$v" >/dev/null 2>&1; do
+    v="$base.$n"
+    n=$((n + 1))
+  done
+  printf '%s\n' "$v"
+}
+
+CHECK_SHA= CHECK_SIZE= CHECK_COMMIT= CHECK_DEVICE= CHECK_CFW= CHECK_RESOLUTION= CHECK_TESTS=
+
+check_artifact() {
+  local art=${1:-$ARTIFACT}
+  local receipt=${2:-$RECEIPT}
+  local commit=${3:-$(git rev-parse HEAD)}
+  [ -f "$art" ] || die "artifact not found: $art"
+  local args=(--artifact "$(to_wsl "$art")" --version "$VERSION" --commit "$commit" --format shell)
+  if [ -n "$receipt" ]; then
+    [ -f "$receipt" ] || die "receipt not found: $receipt"
+    args+=(--receipt "$(to_wsl "$receipt")" --require-receipt)
+  fi
+  local cmd="cd $(printf '%q' "$(wsl_root)") && python3 tools/release_check.py"
+  local arg
+  for arg in "${args[@]}"; do cmd+=" $(printf '%q' "$arg")"; done
+  local out
+  if ! out=$(wsl.exe -d "$DISTRO" -e bash -lc "$cmd"); then
+    die "artifact check failed"
+  fi
+  while IFS='=' read -r key value; do
+    case "$key" in
+      CHECK) [ "$value" = ok ] || die "artifact check failed" ;;
+      SHA256) CHECK_SHA=$value ;;
+      SIZE) CHECK_SIZE=$value ;;
+      COMMIT) CHECK_COMMIT=$value ;;
+      RECEIPT_DEVICE) CHECK_DEVICE=$value ;;
+      RECEIPT_CFW) CHECK_CFW=$value ;;
+      RECEIPT_RESOLUTION) CHECK_RESOLUTION=$value ;;
+      RECEIPT_TESTS) CHECK_TESTS=$value ;;
+    esac
+  done <<< "$out"
+  [ -n "$CHECK_SHA" ] || die "artifact check produced no checksum"
+  say "artifact ok: $VERSION, $CHECK_SHA, $(( ${CHECK_SIZE:-0} / 1048576 )) MiB, source $CHECK_COMMIT"
+}
+
+build_artifact() {
+  [ -n "$VERSION" ] || die "--version is required"
+  if [ "$DRY_RUN" = 1 ]; then
+    say "would build share/out/OMORI-PMJS-$VERSION.zip from $(git rev-parse --short HEAD)"
+    return 0
+  fi
+  local root cmd
+  root=$(wsl_root)
+  cmd="cd $(printf '%q' "$root") && { [ -f \"\$HOME/omori-test/build-env/env.sh\" ] && source \"\$HOME/omori-test/build-env/env.sh\"; } || true; python3 tools/release-build.py --version $(printf '%q' "$VERSION") --require-screenshot"
+  if [ -n "${PMJS_RUNTIME:-}" ]; then cmd+=" --runtime $(printf '%q' "$PMJS_RUNTIME")"; fi
+  if [ -n "${PMJS_RUNTIME_SRC:-}" ]; then cmd+=" --runtime-src $(printf '%q' "$PMJS_RUNTIME_SRC")"; fi
+  say "building $VERSION in WSL ($DISTRO)"
+  wsl.exe -d "$DISTRO" -e bash -lc "$cmd"
+  ARTIFACT="$OUT/OMORI-PMJS-$VERSION.zip"
+  [ -f "$ARTIFACT" ] || die "build did not produce $ARTIFACT"
+}
+
+write_notes() {
+  local date changes
+  date=$(date +%Y-%m-%d)
+  changes=$(printf '%s\n' "$CHANGES" | sed 's/; */\n/g' | sed '/^$/d; s/^\([^-*#].*\)$/- \1/')
+  if [ "$DRY_RUN" = 1 ]; then
+    say "would write docs/releases/$VERSION.md and update CHANGELOG.md"
+    say "$changes"
+    return 0
+  fi
+  mkdir -p docs/releases
+  awk -v version="$VERSION" -v date="$date" -v changes="$changes" '
+    { gsub(/@VERSION@/, version); gsub(/@DATE@/, date); gsub(/@CHANGES@/, changes); print }
+  ' docs/releases/TEMPLATE.md > "docs/releases/$VERSION.md"
+  local tmp
+  tmp=$(mktemp)
+  if [ -f CHANGELOG.md ]; then
+    {
+      head -n 1 CHANGELOG.md
+      printf '\n## %s - %s\n\n%s\n' "$VERSION" "$date" "$changes"
+      tail -n +2 CHANGELOG.md
+    } > "$tmp"
+  else
+    printf '# Changelog\n\n## %s - %s\n\n%s\n' "$VERSION" "$date" "$changes" > "$tmp"
+  fi
+  mv "$tmp" CHANGELOG.md
+}
+
+cmd_prepare() {
+  require_clean
+  [ "$(git rev-parse --abbrev-ref HEAD)" = "$BRANCH" ] || die "not on branch $BRANCH"
+  [ -n "$VERSION" ] || VERSION=$(default_version)
+  if [ -n "$CHANGES_FILE" ]; then
+    [ -f "$CHANGES_FILE" ] || die "changes file not found: $CHANGES_FILE"
+    CHANGES=$(cat "$CHANGES_FILE")
+  fi
+  if [ -z "$CHANGES" ] && [ -n "$CHANGES_FILE" ]; then
+    CHANGES=$(cat "$CHANGES_FILE")
+  fi
+  [ -n "$CHANGES" ] || die "--changes or --changes-file is required"
+  if [ -f "docs/releases/$VERSION.md" ] && [ "$FORCE" != 1 ]; then
+    die "docs/releases/$VERSION.md exists; use --force"
+  fi
+  if git rev-parse -q --verify "refs/tags/$TAG_PREFIX$VERSION" >/dev/null 2>&1; then
+    die "tag $TAG_PREFIX$VERSION already exists"
+  fi
+  write_notes
+  if [ "$DRY_RUN" = 1 ]; then
+    say "would commit Release $VERSION, push $BRANCH, and build"
+    return 0
+  fi
+  git add "docs/releases/$VERSION.md" CHANGELOG.md
+  if [ "$CO_AUTHOR" = 1 ]; then
+    git commit -m "Release $VERSION" -m "$CHANGES" -m "Co-Authored-By: Claude Code <noreply@anthropic.com>"
+  else
+    git commit -m "Release $VERSION" -m "$CHANGES"
+  fi
+  git push origin "$BRANCH"
+  if [ "$NO_BUILD" = 0 ]; then
+    build_artifact
+    check_artifact "$ARTIFACT" "" "$(git rev-parse HEAD)"
+    say ""
+    say "Next: device-test $ARTIFACT, write a receipt (docs/RELEASING.md), then:"
+    say "  tools/release.sh publish --version $VERSION --receipt <receipt.json>"
+  else
+    say "Next: build share/out/OMORI-PMJS-$VERSION.zip from this commit, device-test it, then publish."
+  fi
+}
+
+cmd_check() {
+  [ -n "$VERSION" ] || die "--version is required"
+  ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
+  [ -f "docs/releases/$VERSION.md" ] || die "notes missing: docs/releases/$VERSION.md"
+  check_artifact "$ARTIFACT" "$RECEIPT"
+  say "notes ok: docs/releases/$VERSION.md"
+  if [ -n "$RECEIPT" ]; then say "receipt ok: $RECEIPT"; fi
+}
+
+cmd_publish() {
+  [ -n "$VERSION" ] || die "--version is required"
+  ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
+  [ -f "$ARTIFACT" ] || die "artifact not found: $ARTIFACT"
+  [ -f "docs/releases/$VERSION.md" ] || die "notes missing: docs/releases/$VERSION.md"
+  if [ "$PRERELEASE" = 0 ] && [ -z "$RECEIPT" ] && [ "$ALLOW_UNVERIFIED" != 1 ]; then
+    die "a device receipt is required for a full release (or use --prerelease)"
+  fi
+  require_clean
+  require_sync
+  local head tag stable body
+  head=$(git rev-parse HEAD)
+  check_artifact "$ARTIFACT" "$RECEIPT" "$head"
+  tag="$TAG_PREFIX$VERSION"
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+    die "tag $tag already exists"
+  fi
+  if gh release view "$tag" -R "$REPO_SLUG" >/dev/null 2>&1; then
+    die "release $tag already exists"
+  fi
+  stable="$OUT/OMORI-PMJS.zip"
+  [ -f "$stable" ] || die "stable copy missing: $stable"
+  [ "$(sha256_of "$stable")" = "$CHECK_SHA" ] || die "stable copy differs from the versioned artifact; rebuild"
+  [ -f "$ARTIFACT.sha256" ] || die "checksum file missing: $ARTIFACT.sha256"
+  [ -f "$OUT/OMORI-PMJS-$VERSION.json" ] || die "manifest missing: $OUT/OMORI-PMJS-$VERSION.json"
+
+  body="$OUT/release-body-$VERSION.md"
+  {
+    printf '# OMORI (PMJS) %s\n\n' "$VERSION"
+    printf '**Download:** [OMORI-PMJS-%s.zip](https://github.com/%s/releases/download/%s/OMORI-PMJS-%s.zip) | [latest stable](https://github.com/%s/releases/latest/download/OMORI-PMJS.zip)\n\n' \
+      "$VERSION" "$REPO_SLUG" "$tag" "$VERSION" "$REPO_SLUG"
+    printf '![OMORI on the RG40XX-H](https://github.com/%s/releases/download/%s/screenshot.png)\n\n' "$REPO_SLUG" "$tag"
+    cat "docs/releases/$VERSION.md"
+    printf '\n\n## SHA-256\n\n```\n%s  OMORI-PMJS-%s.zip\n```\n' "$CHECK_SHA" "$VERSION"
+    if [ -n "$CHECK_DEVICE" ]; then
+      printf '\n## Device verification\n\n%s on %s, %s. Tests: %s. The receipt is attached.\n' \
+        "$CHECK_DEVICE" "$CHECK_CFW" "$CHECK_RESOLUTION" "$CHECK_TESTS"
+    fi
+    printf '\n## Source\n\nPort sources: https://github.com/%s at commit `%s`.\n' "$REPO_SLUG" "$head"
+  } > "$body"
+
+  if [ "$DRY_RUN" = 1 ]; then
+    say "would tag $tag at $head, push the tag, and create the GitHub release"
+    say "release body: $body"
+    return 0
+  fi
+  git tag -a "$tag" -m "OMORI (PMJS) $VERSION"
+  git push origin "$tag"
+  local assets=("$ARTIFACT" "$stable" "$ARTIFACT.sha256" "$OUT/OMORI-PMJS-$VERSION.json" "share/omori-pmjs/metadata/screenshot.png")
+  if [ -n "$RECEIPT" ]; then assets+=("$RECEIPT"); fi
+  local latest=()
+  if [ "$PRERELEASE" = 0 ]; then latest=(--latest); fi
+  local flags=()
+  if [ "$PRERELEASE" = 1 ]; then flags=(--prerelease); fi
+  gh release create "$tag" -R "$REPO_SLUG" --title "OMORI (PMJS) $VERSION" --notes-file "$body" "${latest[@]}" "${flags[@]}" "${assets[@]}"
+  say "published: https://github.com/$REPO_SLUG/releases/tag/$tag"
+}
+
+cmd_status() {
+  gh release list -R "$REPO_SLUG" --limit 10
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) VERSION=${2:?}; shift 2 ;;
+    --changes) CHANGES=${2:?}; shift 2 ;;
+    --changes-file) CHANGES_FILE=${2:?}; shift 2 ;;
+    --artifact) ARTIFACT=${2:?}; shift 2 ;;
+    --receipt) RECEIPT=${2:?}; shift 2 ;;
+    --branch) BRANCH=${2:?}; shift 2 ;;
+    --repo) REPO_SLUG=${2:?}; shift 2 ;;
+    --prerelease) PRERELEASE=1; shift ;;
+    --allow-unverified) ALLOW_UNVERIFIED=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --force) FORCE=1; shift ;;
+    --co-author) CO_AUTHOR=1; shift ;;
+    --no-build) NO_BUILD=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+
+case "$MODE" in
+  prepare) cmd_prepare ;;
+  check) cmd_check ;;
+  publish) cmd_publish ;;
+  status) cmd_status ;;
+  help|--help|-h) usage ;;
+  *) usage; die "unknown command: $MODE" ;;
+esac

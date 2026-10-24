@@ -1,8 +1,18 @@
 # OMORI on PMJS
 
+[![Download the latest release](https://img.shields.io/github/v/release/AbdullahTrees/omori-pmjs?style=for-the-badge&label=DOWNLOAD)](https://github.com/AbdullahTrees/omori-pmjs/releases/latest)
+
 An unofficial port of OMORI (RPG Maker MV) to ARM64 PortMaster handhelds, running on [PMJS](https://github.com/bbbreaddd/pmjs), a lightweight native replacement for NW.js/Chromium. The game's own files are never bundled. You supply your own OMORI copy.
 
 This repository contains the port's launcher, game-side patches, Steam-to-plain converter, PortMaster metadata and release builder. The PMJS runtime itself is built from the PMJS source.
+
+## Download
+
+Download the latest release:
+
+- **[OMORI-PMJS.zip](https://github.com/AbdullahTrees/omori-pmjs/releases/latest/download/OMORI-PMJS.zip)** (always the newest build)
+- [All releases and notes](https://github.com/AbdullahTrees/omori-pmjs/releases)
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## Requirements
 
@@ -19,7 +29,8 @@ Download the ZIP from [Releases](https://github.com/AbdullahTrees/omori-pmjs/rel
 1. Copy `OMORI (PMJS).sh` to the firmware's Ports folder (`/mnt/mmc/ROMS/Ports/` on muOS, `/roms/ports/` elsewhere).
 2. Copy the `omori-pmjs/` folder to the firmware's ports storage (`/mnt/mmc/ports/` on muOS).
 3. Copy your Steam OMORI install into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists.
-4. Launch OMORI (PMJS) from the Ports menu.
+4. Put the game's 32-character decryption key in `omori-pmjs/gamedata/key.txt` (see below).
+5. Launch OMORI (PMJS) from the Ports menu.
 
 The first launch converts the game files and prepares an image/map cache. It takes about 25 minutes and needs about 5.5 GB free. Later launches take about a minute to the title screen.
 
@@ -62,7 +73,17 @@ python3 tools/dependencies.py --jobs 4
 
 The runtime is written to `dist/pmjs-arm64`. The 64-bit Linux build needs Python 3, CMake, Ninja, Clang/LLVM 20 and the development packages listed in PMJS's build guide.
 
-Build the release ZIP from this repository:
+Build and publish a release from this repository:
+
+```bash
+tools/release.sh prepare --version 2026.10.25 --changes "Fixed X; Improved Y"
+# device-test share/out/OMORI-PMJS-2026.10.25.zip and write a receipt
+tools/release.sh publish --version 2026.10.25 --receipt receipt.json
+```
+
+`prepare` commits the notes and changelog, pushes `main`, builds the ZIP and checks it. `publish` creates the Latest GitHub release with the versioned ZIP, the stable `OMORI-PMJS.zip`, the checksum, manifest, screenshot and device receipt. See [docs/RELEASING.md](docs/RELEASING.md) for the full process and the receipt format.
+
+The lower-level builder can be run directly:
 
 ```bash
 python3 tools/release-build.py \
@@ -71,7 +92,7 @@ python3 tools/release-build.py \
   --version <version>
 ```
 
-The builder stages the launcher, metadata, runtime, patches, converter, licenses and an empty `gamedata/`, then writes `share/out/OMORI-PMJS-<version>.zip` and `share/out/OMORI-PMJS.zip`.
+It stages the launcher, metadata, runtime, patches, converter, licenses and an empty `gamedata/`, then writes `share/out/OMORI-PMJS-<version>.zip` and `share/out/OMORI-PMJS.zip`.
 
 ## Repository layout
 
@@ -85,6 +106,11 @@ The builder stages the launcher, metadata, runtime, patches, converter, licenses
 | `tools/reference.sha256` | SHA-256 manifest of the known-good decrypted game |
 | `tools/steam-to-reference.patch` | Compatibility changes for the Steam scripts |
 | `tools/release-build.py` | Builds the PortMaster ZIP |
+| `tools/release.sh` | Prepares, checks and publishes a GitHub release |
+| `tools/release_check.py` | Validates a ZIP and device receipt |
+| `docs/releases/` | Per-version release notes and the notes template |
+| `docs/RELEASING.md` | Release process, versioning, device receipt and troubleshooting |
+| `CHANGELOG.md` | Short release history |
 
 ## Credits and licensing
 
