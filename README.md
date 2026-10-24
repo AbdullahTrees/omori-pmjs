@@ -25,15 +25,15 @@ The first launch converts the game files and prepares an image/map cache. It tak
 
 ## Steam decryption key
 
-The Steam release stores its assets encrypted. This package contains no key. The launcher looks for the key in:
+The game files alone do not contain the key. Steam supplies it in its launch configuration. On the handheld:
 
-- a `.bat`, `.sh` or `.cmd` launch script next to `OMORI.exe` (Steam's `--<key>` argument),
-- `gamedata/appinfo.vdf` (copy Steam's `appcache/appinfo.vdf` here),
-- the `OMORI_KEY` environment variable,
-- `gamedata/omori-key.txt` containing the 32-character key,
-- a `--key` argument to `tools/extract.js`.
+1. On your PC, open Steam's `appcache/appinfo.vdf` with a text or hex editor. On Windows it is normally `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`.
+2. Search for `OMORI.exe`. The next string is `--` followed by 32 characters.
+3. Save those 32 characters as `gamedata/key.txt` on the SD card.
 
-On Windows, Steam's file is normally at `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`. A copy of the game that is already decrypted needs no key.
+Alternatively, copy `appinfo.vdf` itself into `gamedata/`; the converter finds the key automatically. A `.bat`, `.sh` or `.cmd` launch script next to `OMORI.exe`, the `OMORI_KEY` environment variable, and `--key` on `tools/extract.js` also work. A copy of the game that is already decrypted needs no key.
+
+This package contains no key.
 
 ## Controls
 

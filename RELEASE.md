@@ -20,7 +20,7 @@ The first launch converts the files and prepares a cache. It takes about 25 minu
 
 ## Decryption key
 
-The package contains no key. The converter finds the player's own key in a launch script next to `OMORI.exe`, `gamedata/appinfo.vdf`, `OMORI_KEY`, `gamedata/omori-key.txt`, or `--key`. A decrypted copy needs no key.
+The game files alone do not contain the key; Steam supplies it in its launch configuration. Put the 32-character key in `omori-pmjs/gamedata/key.txt`, or copy Steam's `appcache/appinfo.vdf` into `gamedata/` and the converter reads it automatically. The key is the `--` argument after `OMORI.exe` in `appinfo.vdf` (normally `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`). A decrypted copy needs no key.
 
 ## Controls
 

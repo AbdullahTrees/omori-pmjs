@@ -60,7 +60,7 @@ if [ ! -f "$GAME/index.html" ]; then
   rm -rf "$GAMEDIR/www.partial"
   if ! "$RUNTIME/bin/$BINARY" "$GAMEDIR/tools/extract.js" "$SOURCE" "$GAMEDIR/www.partial"; then
     rm -rf "$GAMEDIR/www.partial"
-    pm_show_error "Could not convert the OMORI files. For the Steam release, copy Steam's appcache/appinfo.vdf into gamedata/ or put your key in gamedata/omori-key.txt. See log.txt for details." --title "Conversion failed" --type error
+    pm_show_error "Could not convert the OMORI files. For the Steam release, put the key in gamedata/key.txt (32 characters) or copy Steam's appcache/appinfo.vdf into gamedata/. See log.txt for details." --title "Conversion failed" --type error
     exit 1
   fi
   rm -rf "$GAMEDIR/www"

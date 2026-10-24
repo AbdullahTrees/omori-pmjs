@@ -8,7 +8,7 @@ Title: OMORI (PMJS)
 URL: https://store.steampowered.com/app/1150690/OMORI/
 
 Instructions:
-Copy your Steam OMORI install (v1.0.8, the folder containing www/) into ports/omori-pmjs/gamedata/ before the first launch. If the install has no launch script, also copy Steam's appcache/appinfo.vdf into gamedata/ so the launcher can find the decryption key. The first launch converts the files and prepares a cache; allow about 25 minutes and 5.5 GB of free space. Tested on an Anbernic RG40XX-H running muOS 2502.0 at 640x480.
+Copy your Steam OMORI install (v1.0.8, the folder containing www/) into ports/omori-pmjs/gamedata/ before the first launch. Put the game's 32-character decryption key in gamedata/key.txt, or copy Steam's appcache/appinfo.vdf into gamedata/ and the launcher will read the key automatically. The first launch converts the files and prepares a cache; allow about 25 minutes and 5.5 GB of free space. Tested on an Anbernic RG40XX-H running muOS 2502.0 at 640x480.
 
 | Button | Action |
 |--|--|

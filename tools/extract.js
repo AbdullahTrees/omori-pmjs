@@ -153,6 +153,12 @@ function findKey(source, outDir, files, validate) {
         path.join(process.env.HOME || '', '.steam/steam/appcache/appinfo.vdf'),
         path.join(process.env.HOME || '', '.local/share/Steam/appcache/appinfo.vdf')
     ];
+    if (process.platform === 'win32') {
+        appinfo.push(path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
+            'Steam/appcache/appinfo.vdf'));
+        appinfo.push(path.join(process.env.ProgramFiles || 'C:\\Program Files',
+            'Steam/appcache/appinfo.vdf'));
+    }
     appinfo.forEach(function (file) {
         add(scanKeyFile(file), file);
     });
@@ -294,7 +300,7 @@ function main() {
         var found = findKey(source, outDir, sourceFiles, !!systemRel);
         if (!found) {
             console.error('ERROR: this OMORI install is encrypted and no decryption key was found.');
-            console.error('Put the key in ' + path.join(source, 'omori-key.txt') + ', copy Steam\'s appcache/appinfo.vdf into ' + source + ', or pass --key.');
+            console.error('Put the key in key.txt next to the game folder, copy Steam\'s appcache/appinfo.vdf next to it, or pass --key.');
             return 2;
         }
         AES_KEY = found.key;
