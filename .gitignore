@@ -1,0 +1,6 @@
+share/out/
+*.zip
+__pycache__/
+*.pyc
+.codegraph/
+scratch/

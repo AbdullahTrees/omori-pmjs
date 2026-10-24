@@ -1,0 +1,41 @@
+{
+  "version": 4,
+  "name": "omori-pmjs.zip",
+  "items": [
+    "OMORI (PMJS).sh",
+    "omori-pmjs"
+  ],
+  "items_opt": [],
+  "attr": {
+    "title": "OMORI (PMJS)",
+    "porter": [
+      "AbdullahTrees"
+    ],
+    "desc": "OMORI, the psychological horror RPG by OMOCAT, running on PMJS, a lightweight native runtime for RPG Maker MV. Requires your own OMORI game files (Steam release 1.0.8).",
+    "desc_md": null,
+    "inst": "Copy your Steam OMORI install folder into ports/omori-pmjs/gamedata/. If the install has no launch script, also copy Steam's appcache/appinfo.vdf into gamedata/. The first launch converts the files and prepares a cache; allow about 25 minutes and 5.5 GB of free space.",
+    "inst_md": null,
+    "genres": [
+      "rpg"
+    ],
+    "image": null,
+    "rtr": false,
+    "exp": false,
+    "runtime": [],
+    "store": [
+      {
+        "name": "Steam",
+        "gameurl": "https://store.steampowered.com/app/1150690/OMORI/",
+        "developerurl": "https://www.omori-game.com/"
+      }
+    ],
+    "availability": "paid",
+    "reqs": [
+      "!lowres"
+    ],
+    "arch": [
+      "aarch64"
+    ],
+    "min_glibc": "2.28"
+  }
+}

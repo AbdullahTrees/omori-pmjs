@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.sha256 text eol=lf
+# The Steam patch is applied byte-for-byte to CRLF game scripts.
+*.patch -text

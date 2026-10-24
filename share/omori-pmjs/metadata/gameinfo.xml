@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./OMORI (PMJS).sh</path>
+    <name>OMORI</name>
+    <desc>OMORI is a surreal psychological horror RPG by OMOCAT. Explore a hand-drawn dream world, fight turn-based battles with your friends, and uncover a story about memory and grief.</desc>
+    <releasedate>20201225T000000</releasedate>
+    <developer>OMOCAT, LLC</developer>
+    <publisher>OMOCAT, LLC</publisher>
+    <genre>RPG</genre>
+    <image>./omori-pmjs/screenshot.png</image>
+  </game>
+</gameList>
