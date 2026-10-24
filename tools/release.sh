@@ -34,6 +34,7 @@ Usage: tools/release.sh <command> [options]
 
 Commands:
   prepare   Write release notes/changelog, commit+push main, build the ZIP.
+  build     Build and check the ZIP for the current pushed commit (resume a prepare).
   check     Validate an artifact (and optional device receipt) without changes.
   publish   Tag the source commit and create the GitHub release.
   promote   Upload a receipt to an existing prerelease or unverified release and mark it Latest.
@@ -49,7 +50,7 @@ Options:
   --receipt FILE          Device verification receipt (required for a full release or promote).
   --prerelease            Create a GitHub prerelease; a receipt is optional.
   --skip-device-check     Publish a full release without a device receipt (alias --allow-unverified).
-  --dry-run               Print what would happen; no writes, commits or releases.
+  --dry-run               Preview actions; only a local release-body file may be written, never commits or GitHub changes.
   --force                 Overwrite an existing notes file in prepare.
   --no-build              prepare without building the ZIP.
   --co-author             Add the Claude Code co-author trailer to the release commit.
@@ -190,17 +191,23 @@ write_notes() {
     return 0
   fi
   mkdir -p docs/releases
-  awk -v version="$VERSION" -v date="$date" -v changes="$changes" '
-    { gsub(/@VERSION@/, version); gsub(/@DATE@/, date); gsub(/@CHANGES@/, changes); print }
+  CHANGES="$changes" awk -v version="$VERSION" -v date="$date" '
+    $0 == "@CHANGES@" { print ENVIRON["CHANGES"]; next }
+    { gsub(/@VERSION@/, version); gsub(/@DATE@/, date); print }
   ' docs/releases/TEMPLATE.md > "docs/releases/$VERSION.md"
   local tmp
   tmp=$(mktemp)
   if [ -f CHANGELOG.md ]; then
-    {
-      head -n 1 CHANGELOG.md
-      printf '\n## %s - %s\n\n%s\n' "$VERSION" "$date" "$changes"
-      tail -n +2 CHANGELOG.md
-    } > "$tmp"
+    CHANGES="$changes" awk -v version="$VERSION" -v date="$date" '
+      NR == 1 && $0 == "# Changelog" {
+        print; print ""; print "## " version " - " date; print ""; print ENVIRON["CHANGES"]; print ""; seen=1; next
+      }
+      $0 ~ ("^## " version " - ") { skip=1; next }
+      /^## / { skip=0 }
+      skip { next }
+      { print }
+      END { if (!seen) { print "## " version " - " date; print ""; print ENVIRON["CHANGES"]; print "" } }
+    ' CHANGELOG.md > "$tmp"
   else
     printf '# Changelog\n\n## %s - %s\n\n%s\n' "$VERSION" "$date" "$changes" > "$tmp"
   fi
@@ -213,17 +220,29 @@ cmd_prepare() {
   [ -n "$VERSION" ] || VERSION=$(default_version)
   if [ -n "$CHANGES_FILE" ]; then
     [ -f "$CHANGES_FILE" ] || die "changes file not found: $CHANGES_FILE"
-    CHANGES=$(cat "$CHANGES_FILE")
-  fi
-  if [ -z "$CHANGES" ] && [ -n "$CHANGES_FILE" ]; then
-    CHANGES=$(cat "$CHANGES_FILE")
+    CHANGES=$(tr -d '\r' < "$CHANGES_FILE")
   fi
   [ -n "$CHANGES" ] || die "--changes or --changes-file is required"
-  if [ -f "docs/releases/$VERSION.md" ] && [ "$FORCE" != 1 ]; then
-    die "docs/releases/$VERSION.md exists; use --force"
-  fi
   if git rev-parse -q --verify "refs/tags/$TAG_PREFIX$VERSION" >/dev/null 2>&1; then
     die "tag $TAG_PREFIX$VERSION already exists"
+  fi
+  if [ "$(git log -1 --format=%s)" = "Release $VERSION" ] && [ -f "docs/releases/$VERSION.md" ]; then
+    say "release commit for $VERSION is already HEAD; resuming with the build"
+    if [ "$DRY_RUN" = 1 ]; then
+      say "would build share/out/OMORI-PMJS-$VERSION.zip from HEAD"
+      return 0
+    fi
+    if [ "$NO_BUILD" = 0 ]; then
+      build_artifact
+      check_artifact "$ARTIFACT" "" "$(git rev-parse HEAD)"
+      say ""
+      say "Next: device-test $ARTIFACT, write a receipt (docs/RELEASING.md), then:"
+      say "  tools/release.sh publish --version $VERSION --receipt <receipt.json>"
+    fi
+    return 0
+  fi
+  if [ -f "docs/releases/$VERSION.md" ] && [ "$FORCE" != 1 ]; then
+    die "docs/releases/$VERSION.md exists; use --force or run 'tools/release.sh build --version $VERSION'"
   fi
   write_notes
   if [ "$DRY_RUN" = 1 ]; then
@@ -248,8 +267,19 @@ cmd_prepare() {
   fi
 }
 
-cmd_check() {
+cmd_build() {
   [ -n "$VERSION" ] || die "--version is required"
+  ARTIFACT="$OUT/OMORI-PMJS-$VERSION.zip"
+  require_clean
+  require_sync
+  build_artifact
+  check_artifact "$ARTIFACT" "" "$(git rev-parse HEAD)"
+  say ""
+  say "Next: device-test $ARTIFACT, write a receipt (docs/RELEASING.md), then:"
+  say "  tools/release.sh publish --version $VERSION --receipt <receipt.json>"
+}
+
+cmd_check() {  [ -n "$VERSION" ] || die "--version is required"
   ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
   [ -f "docs/releases/$VERSION.md" ] || die "notes missing: docs/releases/$VERSION.md"
   local commit
@@ -387,6 +417,7 @@ done
 
 case "$MODE" in
   prepare) cmd_prepare ;;
+  build) cmd_build ;;
   check) cmd_check ;;
   publish) cmd_publish ;;
   promote) cmd_promote ;;

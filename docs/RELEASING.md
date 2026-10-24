@@ -6,9 +6,10 @@ Quick playbook: [RELEASE.md](../RELEASE.md). This page is the full reference.
 
 ## Prerequisites
 
-- WSL (Ubuntu 22.04 by default) with the PMJS build environment:
+- On Windows, WSL (Ubuntu 22.04 by default) with the PMJS build environment; on Linux, the same build tools on `PATH` (the build runs locally).
   - `~/omori-test/build-env/env.sh` provides `llvm-strip-20`.
   - A built ARM64 runtime at `~/omori-test/pmjs-int3/dist/pmjs-arm64` (the default).
+  - The ARM64 libatomic package at `~/omori-test/libatomic/root/usr/lib/aarch64-linux-gnu/libatomic.so.1.2.0` (the default).
 - `gh` logged in with access to `AbdullahTrees/omori-pmjs`.
 - A device for verification.
 
@@ -24,11 +25,11 @@ GH_TOKEN=... tools/release.sh publish ...
 
 Use `YYYY.MM.DD` for a release, and append `.2`, `.3` for a second release on the same day. The tag is `OMORI-PMJS-<version>`, the ZIP is `OMORI-PMJS-<version>.zip`.
 
-If the PMJS runtime changed, build it first and pass its path. A game-side-only fix can reuse the existing runtime:
+The builder already uses the default runtime paths inside WSL/Linux. If the PMJS runtime changed, build it first; only for a non-default runtime pass its path as WSL/Linux sees it (never a Git Bash `$HOME` path). A game-side-only fix can reuse the existing runtime:
 
 ```bash
-export PMJS_RUNTIME="$HOME/omori-test/pmjs-int3/dist/pmjs-arm64"
-export PMJS_RUNTIME_SRC="$HOME/omori-test/pmjs-int3"
+export PMJS_RUNTIME="/home/<wsl-user>/omori-test/pmjs-int3/dist/pmjs-arm64"
+export PMJS_RUNTIME_SRC="/home/<wsl-user>/omori-test/pmjs-int3"
 ```
 
 ## Prepare
@@ -119,7 +120,7 @@ If a release was published without a receipt, test the exact ZIP later and promo
 tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.json
 ```
 
-`promote` verifies the artifact against the release tag, uploads the receipt, replaces the Unverified/Pre-release note with the device verification, and marks the release **Latest**. The tag and download URL do not move.
+`promote` verifies the artifact against the release tag, uploads the receipt, replaces the Unverified/Pre-release note with the device verification, and marks the release **Latest**. The tag and download URL do not move. It needs a clean working tree and the original `share/out/OMORI-PMJS-<version>.zip`.
 
 ## Check without publishing
 
@@ -128,7 +129,7 @@ tools/release.sh check --version 2026.10.25 --receipt /path/to/device-receipt.js
 tools/release.sh publish --version 2026.10.25 --receipt ... --dry-run
 ```
 
-`check` verifies the artifact and receipt but does not tag or upload. `--dry-run` prints the tag and release body without changing GitHub.
+`check` verifies the artifact and receipt but does not tag or upload; add `--commit OMORI-PMJS-<version>` to check an artifact built before later commits. `--dry-run` writes the release body to `share/out/release-body-<version>.md` and prints its path; it does not touch GitHub.
 
 ## How the release stays prominent
 
@@ -139,6 +140,13 @@ tools/release.sh publish --version 2026.10.25 --receipt ... --dry-run
 
 ## If a publish step fails
 
-- The tag is pushed before the release is created. If upload fails, fix the cause and run `tools/release.sh publish` again; it will refuse because the tag exists. Delete the unpublished tag (`git push origin :refs/tags/<tag>`), then retry. Never move a tag whose release is already public.
+- The tag is pushed before the release is created. If upload fails, fix the cause and remove the local and remote tag (and any partial release), then retry. Deleting only the remote tag is not enough because `publish` checks the local tag first:
+  ```bash
+  TAG=OMORI-PMJS-2026.10.25
+  gh release delete "$TAG" -R AbdullahTrees/omori-pmjs --yes --cleanup-tag || true
+  git tag -d "$TAG" || true
+  git push origin ":refs/tags/$TAG" || true
+  ```
+  Never move a tag whose release is already public.
 - A failed check changes nothing on GitHub.
-- `prepare` refuses to overwrite an existing notes file unless `--force` is given.
+- If `prepare` pushed the release commit but the build/check failed, fix the cause and run `tools/release.sh build --version <version>`; do not re-run `prepare` with `--force` (use a new version to change the notes). `prepare` refuses to overwrite an existing notes file unless `--force` is given; the changelog section is replaced, not duplicated.

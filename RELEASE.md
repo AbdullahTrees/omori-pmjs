@@ -30,12 +30,13 @@ The build expects:
 - On Windows, WSL with the PMJS build environment at `~/omori-test/build-env/env.sh`.
 - On Linux, the same build tools on `PATH`; the script runs the build locally.
 - A built ARM64 runtime at `~/omori-test/pmjs-int3/dist/pmjs-arm64`.
+- The ARM64 libatomic package at `~/omori-test/libatomic/root/usr/lib/aarch64-linux-gnu/libatomic.so.1.2.0` (the builder's default path).
 
-If the runtime itself changed, rebuild it first (see the README's build section), then point the release at it:
+The builder already uses the two default runtime paths above inside WSL/Linux. If the runtime changed, rebuild it first (see the README's build section). Only for a non-default runtime, set both paths as WSL/Linux sees them; never pass a Git Bash `$HOME` path:
 
 ```bash
-export PMJS_RUNTIME="$HOME/omori-test/pmjs-int3/dist/pmjs-arm64"
-export PMJS_RUNTIME_SRC="$HOME/omori-test/pmjs-int3"
+export PMJS_RUNTIME="/home/<wsl-user>/omori-test/pmjs-int3/dist/pmjs-arm64"
+export PMJS_RUNTIME_SRC="/home/<wsl-user>/omori-test/pmjs-int3"
 ```
 
 Game-side JavaScript, metadata, patches or documentation changes do not need a runtime rebuild.
@@ -56,13 +57,21 @@ This command:
 
 1. writes `docs/releases/2026.10.25.md` from the template and updates `CHANGELOG.md`;
 2. commits `Release 2026.10.25` and pushes `main` (the release is built from this commit);
-3. builds `share/out/OMORI-PMJS-2026.10.25.zip` in WSL;
+3. builds `share/out/OMORI-PMJS-2026.10.25.zip` (WSL on Windows, locally on Linux);
 4. validates the ZIP: top-level layout, metadata, screenshot size, licenses, key-free converter and provenance;
 5. prints the artifact path and SHA-256.
 
-Use `--changes-file FILE` for a longer note, `--co-author` to add the Claude Code co-author trailer, `--force` to overwrite an existing notes file, or `--no-build` to prepare only the notes/commit. Separate changes with semicolons or put each on its own bullet in a file.
+Use `--changes-file FILE` for a longer note, `--co-author` to add the Claude Code co-author trailer, `--force` to overwrite an existing notes file, or `--no-build` to prepare only the notes/commit. Keep a changes file outside the repository or in the git-ignored `share/out/`; an untracked file inside the repo makes `prepare` refuse a dirty tree. Separate changes with semicolons or put each on its own bullet in a file. Re-running `prepare` after its release commit resumes at the build instead of adding a second commit; the changelog section is replaced, not duplicated.
 
-If you must release the exact commit you already pushed without `prepare`'s extra release commit, add `docs/releases/<version>.md` and the `CHANGELOG.md` entry before pushing your work (or make one more commit), push, build with `python3 tools/release-build.py --version <version> --require-screenshot`, then continue at step 3. The normal path is `prepare`.
+If `prepare` commits and pushes but the build or artifact check fails, fix the cause and run:
+
+```bash
+tools/release.sh build --version 2026.10.25
+```
+
+That builds and checks the current pushed commit without another commit. Do not re-run `prepare` with `--force` for this; use a new version if the notes themselves need to change.
+
+If you must release the exact commit you already pushed without `prepare`'s extra release commit, add `docs/releases/<version>.md` and the `CHANGELOG.md` entry before pushing your work (or make one more commit), push, run `tools/release.sh build --version <version>`, then continue at step 3. The normal path is `prepare`.
 
 ## 3. Test the exact artifact on a device
 
@@ -135,14 +144,14 @@ A prerelease is not Latest; `promote` can turn it into the verified Latest relea
 
 ### Check without publishing
 
-Validate the artifact and receipt, or print the release body without touching GitHub:
+Validate the artifact and receipt, or render the release body without changing GitHub:
 
 ```bash
 tools/release.sh check --version 2026.10.25 --receipt /path/to/device-receipt.json
 tools/release.sh publish --version 2026.10.25 --receipt /path/to/device-receipt.json --dry-run
 ```
 
-`check` does not need a clean tree; `publish --dry-run` still requires `main` to be clean and pushed because it is the final preflight. To check an artifact that was built before later commits, add `--commit OMORI-PMJS-<version>`; the script resolves the tag to its commit.
+`publish --dry-run` writes the body to `share/out/release-body-<version>.md` and prints its path; it does not tag, push or upload. `check` does not need a clean tree; `publish --dry-run` still requires `main` to be clean and pushed because it is the final preflight. To check an artifact that was built before later commits, add `--commit OMORI-PMJS-<version>`; the script resolves the tag to its commit.
 
 ## 5. Verify the result
 
@@ -164,18 +173,23 @@ https://github.com/AbdullahTrees/omori-pmjs/releases/latest/download/OMORI-PMJS.
 | --- | --- |
 | `working tree is not clean` | Commit or stash your changes. |
 | `local main is not pushed to origin` | `git push origin main`. |
-| `tag ... already exists` | Use a new version; never reuse a tag. |
-| `release ... already exists` | Use a new version, or delete an unpublished release first. |
+| `tag ... already exists` | If no release is public, run the cleanup below and retry; otherwise use a new version. |
+| `release ... already exists` | Delete an unpublished release first; otherwise use a new version. |
 | `receipt sha256 does not match` | The receipt is for a different ZIP; use the `.sha256` next to the artifact. |
 | `a device receipt is required` | Test and pass `--receipt`, or use `--skip-device-check`/`--prerelease`. |
 | `gh: ... not logged in` or 403 | `gh auth switch --user AbdullahTrees`, or set `GH_TOKEN`. |
-| `no such file: llvm-strip-20` | Source `~/omori-test/build-env/env.sh`; the script does this automatically when present. |
+| `warning: no strip tool found` or `strip: Unable to recognise the format` | Source `~/omori-test/build-env/env.sh` in WSL/Linux; `release.sh` does this automatically when present. |
 
-If the tag was pushed but release creation failed, fix the cause and delete the unpublished tag before retrying:
+If the tag was pushed but the release was not published, fix the cause, remove the local and remote tag (and any partial release), then retry:
 
 ```bash
-git push origin :refs/tags/OMORI-PMJS-2026.10.25
+TAG=OMORI-PMJS-2026.10.25
+gh release delete "$TAG" -R AbdullahTrees/omori-pmjs --yes --cleanup-tag || true
+git tag -d "$TAG" || true
+git push origin ":refs/tags/$TAG" || true
 ```
+
+Deleting only the remote tag is not enough: `publish` checks the local tag first.
 
 Never move a tag whose release is already public. Publish a new version instead.
 

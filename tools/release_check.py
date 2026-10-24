@@ -15,7 +15,6 @@ from pathlib import Path
 
 LAUNCHER = 'OMORI (PMJS).sh'
 PORT = 'omori-pmjs/'
-KNOWN_KEY = '6bdb2e585882fbd48826ef9cffd4c511'
 REQUIRED = [
     'port.json', 'gameinfo.xml', 'README.md', 'screenshot.png',
     'licenses/LICENSES.md', 'gamedata/README.txt',
@@ -82,8 +81,8 @@ def main():
         if dimensions != (640, 480):
             return fail('screenshot must be a 640x480 PNG, got %r' % (dimensions,))
         extract = bundle.read(PORT + 'tools/extract.js').decode('utf-8', 'replace')
-        if KNOWN_KEY in extract or re.search(r"AES_KEY\s*=\s*'[0-9a-fA-F]{32}'", extract):
-            return fail('extract.js contains a hardcoded AES key')
+        if re.search(r"['\"][0-9a-fA-F]{32}['\"]", extract):
+            return fail('extract.js contains a hardcoded 32-character key')
         for source_name in ('appinfo.vdf', 'key.txt', 'OMORI_KEY', '--key'):
             if source_name not in extract:
                 return fail('extract.js does not mention ' + source_name)
