@@ -36,6 +36,7 @@ Commands:
   prepare   Write release notes/changelog, commit+push main, build the ZIP.
   check     Validate an artifact (and optional device receipt) without changes.
   publish   Tag the source commit and create the GitHub release.
+  promote   Upload a receipt to an existing prerelease and mark it Latest.
   status    Show recent GitHub releases.
   help      This text.
 
@@ -44,9 +45,9 @@ Options:
   --changes TEXT          One-line or semicolon-separated changes (prepare).
   --changes-file FILE     Read changes from a file (prepare).
   --artifact FILE         ZIP to check/publish (default share/out/OMORI-PMJS-<version>.zip).
-  --receipt FILE          Device verification receipt (required for a full release).
+  --receipt FILE          Device verification receipt (required for a full release or promote).
   --prerelease            Create a GitHub prerelease; a receipt is optional.
-  --allow-unverified      Full release without a receipt (not recommended).
+  --skip-device-check     Publish a full release without a device receipt (alias --allow-unverified).
   --dry-run               Print what would happen; no writes, commits or releases.
   --force                 Overwrite an existing notes file in prepare.
   --no-build              prepare without building the ZIP.
@@ -221,6 +222,29 @@ cmd_check() {
   if [ -n "$RECEIPT" ]; then say "receipt ok: $RECEIPT"; fi
 }
 
+write_release_body() {
+  local version=$1 tag=$2 head=$3
+  body="$OUT/release-body-$version.md"
+  {
+    if [ "$PRERELEASE" = 1 ]; then
+      printf '> **Pre-release:** this build is awaiting device verification of the exact ZIP.\n\n'
+    elif [ "$ALLOW_UNVERIFIED" = 1 ] && [ -z "$RECEIPT" ]; then
+      printf '> **Unverified:** this build was published without a device receipt.\n\n'
+    fi
+    printf '# OMORI (PMJS) %s\n\n' "$version"
+    printf '**Download:** [OMORI-PMJS-%s.zip](https://github.com/%s/releases/download/%s/OMORI-PMJS-%s.zip) | [latest stable](https://github.com/%s/releases/latest/download/OMORI-PMJS.zip)\n\n' \
+      "$version" "$REPO_SLUG" "$tag" "$version" "$REPO_SLUG"
+    printf '![OMORI on the RG40XX-H](https://github.com/%s/releases/download/%s/screenshot.png)\n\n' "$REPO_SLUG" "$tag"
+    cat "docs/releases/$version.md"
+    printf '\n\n## SHA-256\n\n```\n%s  OMORI-PMJS-%s.zip\n```\n' "$CHECK_SHA" "$version"
+    if [ -n "$CHECK_DEVICE" ]; then
+      printf '\n## Device verification\n\n%s on %s, %s. Tests: %s. The receipt is attached.\n' \
+        "$CHECK_DEVICE" "$CHECK_CFW" "$CHECK_RESOLUTION" "$CHECK_TESTS"
+    fi
+    printf '\n## Source\n\nPort sources: https://github.com/%s at commit `%s`.\n' "$REPO_SLUG" "$head"
+  } > "$body"
+}
+
 cmd_publish() {
   [ -n "$VERSION" ] || die "--version is required"
   ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
@@ -247,20 +271,7 @@ cmd_publish() {
   [ -f "$ARTIFACT.sha256" ] || die "checksum file missing: $ARTIFACT.sha256"
   [ -f "$OUT/OMORI-PMJS-$VERSION.json" ] || die "manifest missing: $OUT/OMORI-PMJS-$VERSION.json"
 
-  body="$OUT/release-body-$VERSION.md"
-  {
-    printf '# OMORI (PMJS) %s\n\n' "$VERSION"
-    printf '**Download:** [OMORI-PMJS-%s.zip](https://github.com/%s/releases/download/%s/OMORI-PMJS-%s.zip) | [latest stable](https://github.com/%s/releases/latest/download/OMORI-PMJS.zip)\n\n' \
-      "$VERSION" "$REPO_SLUG" "$tag" "$VERSION" "$REPO_SLUG"
-    printf '![OMORI on the RG40XX-H](https://github.com/%s/releases/download/%s/screenshot.png)\n\n' "$REPO_SLUG" "$tag"
-    cat "docs/releases/$VERSION.md"
-    printf '\n\n## SHA-256\n\n```\n%s  OMORI-PMJS-%s.zip\n```\n' "$CHECK_SHA" "$VERSION"
-    if [ -n "$CHECK_DEVICE" ]; then
-      printf '\n## Device verification\n\n%s on %s, %s. Tests: %s. The receipt is attached.\n' \
-        "$CHECK_DEVICE" "$CHECK_CFW" "$CHECK_RESOLUTION" "$CHECK_TESTS"
-    fi
-    printf '\n## Source\n\nPort sources: https://github.com/%s at commit `%s`.\n' "$REPO_SLUG" "$head"
-  } > "$body"
+  write_release_body "$VERSION" "$tag" "$head"
 
   if [ "$DRY_RUN" = 1 ]; then
     say "would tag $tag at $head, push the tag, and create the GitHub release"
@@ -279,6 +290,38 @@ cmd_publish() {
   say "published: https://github.com/$REPO_SLUG/releases/tag/$tag"
 }
 
+cmd_promote() {
+  [ -n "$VERSION" ] || die "--version is required"
+  [ -n "$RECEIPT" ] || die "promote requires --receipt"
+  ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
+  [ -f "$ARTIFACT" ] || die "artifact not found: $ARTIFACT"
+  [ -f "$RECEIPT" ] || die "receipt not found: $RECEIPT"
+  local tag tag_commit pre
+  tag="$TAG_PREFIX$VERSION"
+  git fetch --quiet origin "refs/tags/$tag:refs/tags/$tag" 2>/dev/null || true
+  tag_commit=$(git rev-list -n1 "$tag" 2>/dev/null) || die "tag $tag not found; fetch it first"
+  require_clean
+  check_artifact "$ARTIFACT" "$RECEIPT" "$tag_commit"
+  if ! gh release view "$tag" -R "$REPO_SLUG" >/dev/null 2>&1; then
+    die "release $tag not found"
+  fi
+  pre=$(gh release view "$tag" -R "$REPO_SLUG" --json isPrerelease --jq .isPrerelease)
+  [ "$pre" = true ] || die "release $tag is already a full release"
+  PRERELEASE=0
+  ALLOW_UNVERIFIED=0
+  write_release_body "$VERSION" "$tag" "$tag_commit"
+  local receipt_asset="$OUT/device-receipt-$VERSION.json"
+  cp "$RECEIPT" "$receipt_asset"
+  if [ "$DRY_RUN" = 1 ]; then
+    say "would upload $receipt_asset and mark $tag Latest"
+    say "release body: $body"
+    return 0
+  fi
+  gh release upload "$tag" "$receipt_asset" -R "$REPO_SLUG" --clobber
+  gh release edit "$tag" -R "$REPO_SLUG" --prerelease=false --latest --notes-file "$body"
+  say "promoted to latest: https://github.com/$REPO_SLUG/releases/tag/$tag"
+}
+
 cmd_status() {
   gh release list -R "$REPO_SLUG" --limit 10
 }
@@ -293,7 +336,7 @@ while [ $# -gt 0 ]; do
     --branch) BRANCH=${2:?}; shift 2 ;;
     --repo) REPO_SLUG=${2:?}; shift 2 ;;
     --prerelease) PRERELEASE=1; shift ;;
-    --allow-unverified) ALLOW_UNVERIFIED=1; shift ;;
+    --skip-device-check|--allow-unverified) ALLOW_UNVERIFIED=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --force) FORCE=1; shift ;;
     --co-author) CO_AUTHOR=1; shift ;;
@@ -307,6 +350,7 @@ case "$MODE" in
   prepare) cmd_prepare ;;
   check) cmd_check ;;
   publish) cmd_publish ;;
+  promote) cmd_promote ;;
   status) cmd_status ;;
   help|--help|-h) usage ;;
   *) usage; die "unknown command: $MODE" ;;

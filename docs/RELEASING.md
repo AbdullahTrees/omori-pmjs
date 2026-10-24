@@ -95,11 +95,29 @@ This:
    - the gameplay screenshot
    - the device receipt
 
-For an unverified test build:
+For a full release without a device on hand, skip the receipt explicitly:
+
+```bash
+tools/release.sh publish --version 2026.10.25 --skip-device-check
+```
+
+`--allow-unverified` is an alias. The release body is marked **Unverified** and the release is not held back. The default path still requires a receipt, so nobody ships an unverified build by accident.
+
+For a test build that should not become Latest:
 
 ```bash
 tools/release.sh publish --version 2026.10.25 --prerelease
 ```
+
+### Promote after the device test
+
+If a release was published without a receipt, test the exact ZIP later and promote it:
+
+```bash
+tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.json
+```
+
+`promote` verifies the artifact against the release tag, uploads the receipt, replaces the Unverified/Pre-release note with the device verification, and marks the release **Latest**. The tag and download URL do not move.
 
 ## Check without publishing
 
