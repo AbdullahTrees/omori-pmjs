@@ -21,7 +21,7 @@ The Steam release is encrypted and this package contains no key. The launcher lo
 
 ## Compile
 
-The runtime is PMJS for Linux ARM64. This release was built from the port's `test/device-integration-3` branch at `643396e`: upstream `bbbreaddd/pmjs` at `d551972`, plus the port's performance, preparation and compatibility commits. The branch is not published yet; the exact commit and payload hashes are recorded in `manifest.json`.
+The runtime is PMJS for Linux ARM64. This release was built from the port's [source repository](https://github.com/AbdullahTrees/omori-pmjs), using PMJS upstream `bbbreaddd/pmjs` at `d551972` plus the port's performance, preparation and compatibility commits. The exact runtime and port commits are recorded in `manifest.json`.
 
 ### Runtime
 
