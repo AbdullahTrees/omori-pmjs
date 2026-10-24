@@ -311,7 +311,9 @@ cmd_promote() {
   ALLOW_UNVERIFIED=0
   write_release_body "$VERSION" "$tag" "$tag_commit"
   local receipt_asset="$OUT/device-receipt-$VERSION.json"
-  cp "$RECEIPT" "$receipt_asset"
+  if [ "$RECEIPT" != "$receipt_asset" ]; then
+    cp "$RECEIPT" "$receipt_asset"
+  fi
   if [ "$DRY_RUN" = 1 ]; then
     say "would upload $receipt_asset and mark $tag Latest"
     say "release body: $body"
