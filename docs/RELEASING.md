@@ -1,5 +1,7 @@
 # Releasing OMORI (PMJS)
 
+Quick playbook: [RELEASE.md](../RELEASE.md). This page is the full reference.
+
 `tools/release.sh` turns a source commit into a verified GitHub release. It builds the PortMaster ZIP, checks provenance and contents, requires a device receipt for a full release, tags the commit, and publishes the assets. The release is marked **Latest**, so it appears in the repository's Releases card and at `/releases/latest`.
 
 ## Prerequisites

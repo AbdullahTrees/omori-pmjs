@@ -25,7 +25,7 @@ OUT=share/out
 MODE=${1:-help}
 if [ $# -gt 0 ]; then shift; fi
 
-VERSION= CHANGES= CHANGES_FILE= ARTIFACT= RECEIPT=
+VERSION= CHANGES= CHANGES_FILE= ARTIFACT= RECEIPT= COMMIT=
 PRERELEASE=0 DRY_RUN=0 FORCE=0 ALLOW_UNVERIFIED=0 CO_AUTHOR=0 NO_BUILD=0
 
 usage() {
@@ -36,7 +36,7 @@ Commands:
   prepare   Write release notes/changelog, commit+push main, build the ZIP.
   check     Validate an artifact (and optional device receipt) without changes.
   publish   Tag the source commit and create the GitHub release.
-  promote   Upload a receipt to an existing prerelease and mark it Latest.
+  promote   Upload a receipt to an existing prerelease or unverified release and mark it Latest.
   status    Show recent GitHub releases.
   help      This text.
 
@@ -45,6 +45,7 @@ Options:
   --changes TEXT          One-line or semicolon-separated changes (prepare).
   --changes-file FILE     Read changes from a file (prepare).
   --artifact FILE         ZIP to check/publish (default share/out/OMORI-PMJS-<version>.zip).
+  --commit SHA            Source commit to check against (default HEAD; use the release tag commit for an existing artifact).
   --receipt FILE          Device verification receipt (required for a full release or promote).
   --prerelease            Create a GitHub prerelease; a receipt is optional.
   --skip-device-check     Publish a full release without a device receipt (alias --allow-unverified).
@@ -60,14 +61,30 @@ EOF
 say() { printf '%s\n' "$*"; }
 die() { printf 'release: %s\n' "$*" >&2; exit 1; }
 
-have_wsl() { command -v wsl.exe >/dev/null 2>&1; }
+have_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}" ] && return 1
+  command -v wsl.exe >/dev/null 2>&1
+}
 wsl_root() { wsl.exe -d "$DISTRO" -e wslpath -a "$(pwd -W)" | tr -d '\r'; }
 win_path() {
   local dir
   dir=$(cd "$(dirname -- "$1")" && pwd -W) || return 1
   printf '%s/%s\n' "$dir" "$(basename -- "$1")"
 }
-to_wsl() { wsl.exe -d "$DISTRO" -e wslpath -a "$(win_path "$1")" | tr -d '\r'; }
+abs_path() {
+  if have_wsl; then
+    win_path "$1"
+  else
+    (cd "$(dirname -- "$1")" && printf '%s/%s\n' "$(pwd)" "$(basename -- "$1")")
+  fi
+}
+to_wsl() {
+  if have_wsl; then
+    wsl.exe -d "$DISTRO" -e wslpath -a "$(win_path "$1")" | tr -d '\r'
+  else
+    abs_path "$1"
+  fi
+}
 sha256_of() { sha256sum "$1" | awk '{print $1}'; }
 
 require_clean() {
@@ -105,12 +122,23 @@ check_artifact() {
     [ -f "$receipt" ] || die "receipt not found: $receipt"
     args+=(--receipt "$(to_wsl "$receipt")" --require-receipt)
   fi
-  local cmd="cd $(printf '%q' "$(wsl_root)") && python3 tools/release_check.py"
+  local cmd=""
+  if have_wsl; then
+    cmd="cd $(printf '%q' "$(wsl_root)") && python3 tools/release_check.py"
+  else
+    cmd="cd $(printf '%q' "$ROOT") && python3 tools/release_check.py"
+  fi
   local arg
   for arg in "${args[@]}"; do cmd+=" $(printf '%q' "$arg")"; done
   local out
-  if ! out=$(wsl.exe -d "$DISTRO" -e bash -lc "$cmd"); then
-    die "artifact check failed"
+  if have_wsl; then
+    if ! out=$(wsl.exe -d "$DISTRO" -e bash -lc "$cmd"); then
+      die "artifact check failed"
+    fi
+  else
+    if ! out=$(bash -lc "$cmd"); then
+      die "artifact check failed"
+    fi
   fi
   while IFS='=' read -r key value; do
     case "$key" in
@@ -134,13 +162,20 @@ build_artifact() {
     say "would build share/out/OMORI-PMJS-$VERSION.zip from $(git rev-parse --short HEAD)"
     return 0
   fi
-  local root cmd
-  root=$(wsl_root)
-  cmd="cd $(printf '%q' "$root") && { [ -f \"\$HOME/omori-test/build-env/env.sh\" ] && source \"\$HOME/omori-test/build-env/env.sh\"; } || true; python3 tools/release-build.py --version $(printf '%q' "$VERSION") --require-screenshot"
-  if [ -n "${PMJS_RUNTIME:-}" ]; then cmd+=" --runtime $(printf '%q' "$PMJS_RUNTIME")"; fi
-  if [ -n "${PMJS_RUNTIME_SRC:-}" ]; then cmd+=" --runtime-src $(printf '%q' "$PMJS_RUNTIME_SRC")"; fi
-  say "building $VERSION in WSL ($DISTRO)"
-  wsl.exe -d "$DISTRO" -e bash -lc "$cmd"
+  local args=(--version "$VERSION" --require-screenshot)
+  if [ -n "${PMJS_RUNTIME:-}" ]; then args+=(--runtime "$PMJS_RUNTIME"); fi
+  if [ -n "${PMJS_RUNTIME_SRC:-}" ]; then args+=(--runtime-src "$PMJS_RUNTIME_SRC"); fi
+  if have_wsl; then
+    local root cmd arg
+    root=$(wsl_root)
+    cmd="cd $(printf '%q' "$root") && { [ -f \"\$HOME/omori-test/build-env/env.sh\" ] && source \"\$HOME/omori-test/build-env/env.sh\"; } || true; python3 tools/release-build.py"
+    for arg in "${args[@]}"; do cmd+=" $(printf '%q' "$arg")"; done
+    say "building $VERSION in WSL ($DISTRO)"
+    wsl.exe -d "$DISTRO" -e bash -lc "$cmd"
+  else
+    say "building $VERSION locally"
+    ( cd "$ROOT" && { [ -f "$HOME/omori-test/build-env/env.sh" ] && source "$HOME/omori-test/build-env/env.sh"; } || true; python3 tools/release-build.py "${args[@]}" )
+  fi
   ARTIFACT="$OUT/OMORI-PMJS-$VERSION.zip"
   [ -f "$ARTIFACT" ] || die "build did not produce $ARTIFACT"
 }
@@ -217,7 +252,9 @@ cmd_check() {
   [ -n "$VERSION" ] || die "--version is required"
   ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
   [ -f "docs/releases/$VERSION.md" ] || die "notes missing: docs/releases/$VERSION.md"
-  check_artifact "$ARTIFACT" "$RECEIPT"
+  local commit
+  commit=$(git rev-parse "${COMMIT:-HEAD}^{commit}") || die "cannot resolve commit ${COMMIT:-HEAD}"
+  check_artifact "$ARTIFACT" "$RECEIPT" "$commit"
   say "notes ok: docs/releases/$VERSION.md"
   if [ -n "$RECEIPT" ]; then say "receipt ok: $RECEIPT"; fi
 }
@@ -296,7 +333,7 @@ cmd_promote() {
   ARTIFACT=${ARTIFACT:-$OUT/OMORI-PMJS-$VERSION.zip}
   [ -f "$ARTIFACT" ] || die "artifact not found: $ARTIFACT"
   [ -f "$RECEIPT" ] || die "receipt not found: $RECEIPT"
-  local tag tag_commit pre
+  local tag tag_commit
   tag="$TAG_PREFIX$VERSION"
   git fetch --quiet origin "refs/tags/$tag:refs/tags/$tag" 2>/dev/null || true
   tag_commit=$(git rev-list -n1 "$tag" 2>/dev/null) || die "tag $tag not found; fetch it first"
@@ -305,8 +342,7 @@ cmd_promote() {
   if ! gh release view "$tag" -R "$REPO_SLUG" >/dev/null 2>&1; then
     die "release $tag not found"
   fi
-  pre=$(gh release view "$tag" -R "$REPO_SLUG" --json isPrerelease --jq .isPrerelease)
-  [ "$pre" = true ] || die "release $tag is already a full release"
+  # A prerelease or an unverified full release can be promoted.
   PRERELEASE=0
   ALLOW_UNVERIFIED=0
   write_release_body "$VERSION" "$tag" "$tag_commit"
@@ -334,6 +370,7 @@ while [ $# -gt 0 ]; do
     --changes) CHANGES=${2:?}; shift 2 ;;
     --changes-file) CHANGES_FILE=${2:?}; shift 2 ;;
     --artifact) ARTIFACT=${2:?}; shift 2 ;;
+    --commit) COMMIT=${2:?}; shift 2 ;;
     --receipt) RECEIPT=${2:?}; shift 2 ;;
     --branch) BRANCH=${2:?}; shift 2 ;;
     --repo) REPO_SLUG=${2:?}; shift 2 ;;

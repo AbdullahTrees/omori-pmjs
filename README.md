@@ -81,7 +81,7 @@ tools/release.sh prepare --version 2026.10.25 --changes "Fixed X; Improved Y"
 tools/release.sh publish --version 2026.10.25 --receipt receipt.json
 ```
 
-`prepare` commits the notes and changelog, pushes `main`, builds the ZIP and checks it. `publish` creates the Latest GitHub release with the versioned ZIP, the stable `OMORI-PMJS.zip`, the checksum, manifest, screenshot and device receipt. See [docs/RELEASING.md](docs/RELEASING.md) for the full process and the receipt format.
+`prepare` commits the notes and changelog, pushes `main`, builds the ZIP and checks it. `publish` creates the Latest GitHub release with the versioned ZIP, the stable `OMORI-PMJS.zip`, the checksum, manifest, screenshot and device receipt. See [RELEASE.md](RELEASE.md) for the short playbook and [docs/RELEASING.md](docs/RELEASING.md) for the full process and the receipt format.
 
 The lower-level builder can be run directly:
 
