@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.2 - 2026-10-26
+
+- First semantic-versioned release
+- Fixed the 2026.10.25 launcher's Windows CRLF line endings, which prevented it from starting and writing a log
+- The launcher logs before PortMaster, finds the port folder without it, restores executable bits, and keeps `log.prev.txt`
+- Added a `gamedata/omori-key.txt` template and documented per-firmware install paths and log locations
+- Verified the Steam converter against a real 1.0.8 install: 5,093 files expected, 0 missing, 0 changed
+- Made menu prewarm opt-in to avoid a 20.6-second first-map stall
+
+
 ## 2026.10.25 - 2026-10-25
 
 - Fixed the ArkOS/R36S presentation-canvas crash by asking SDL for the GL context instead of the linked EGL
