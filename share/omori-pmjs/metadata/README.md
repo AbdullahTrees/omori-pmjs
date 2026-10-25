@@ -2,9 +2,11 @@
 
 Thanks to [OMOCAT](https://www.omori-game.com/) for OMORI, a hand-drawn psychological horror RPG whose dream world and turn-based battles carry a story about memory and grief, and to [bbbreaddd](https://github.com/bbbreaddd/pmjs) for PMJS, the lightweight native RPG Maker MV runtime this port runs on.
 
-OMORI is a commercial game. This package does not include its game files. Copy your Steam OMORI install (v1.0.8) into `ports/omori-pmjs/gamedata/` before the first launch. The launcher converts your files and prepares a device cache; allow about 25 minutes and 5.5 GB of free space. After that, launches take about a minute to the title screen. Saves are kept in `ports/omori-pmjs/saves/`.
+OMORI is a commercial game. This package does not include its game files. Copy your Steam OMORI install (v1.0.8) into `ports/omori-pmjs/gamedata/` before the first launch, so that `gamedata/www/index.html` exists. The launcher converts your files and prepares a device cache; allow about 25 minutes and 5.5 GB of free space. After that, launches take about a minute to the title screen. Saves are kept in `ports/omori-pmjs/saves/`.
 
-The Steam release is encrypted and this package contains no key. The launcher looks for the key in a `.bat`, `.sh` or `.cmd` launch script next to the game, in `gamedata/appinfo.vdf`, in the `OMORI_KEY` environment variable, or in `gamedata/omori-key.txt`. If your install has no launch script, copy Steam's `appcache/appinfo.vdf` (on Windows, `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`) into `gamedata/` before the first launch. A copy of the game that is already decrypted needs no key.
+The Steam release is encrypted and this package contains no key. The launcher looks for the key in `gamedata/omori-key.txt` (a template is included; replace its whole contents), in `gamedata/appinfo.vdf`, in a `.bat`, `.sh` or `.cmd` launch script next to the game, or in the `OMORI_KEY` environment variable. If your install has no launch script, copy Steam's `appcache/appinfo.vdf` (on Windows, `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`) into `gamedata/` before the first launch. A copy of the game that is already decrypted needs no key.
+
+If it does not start, read `ports/omori-pmjs/log.txt`; `log.prev.txt` keeps the previous run. If neither exists, the launcher did not find the `omori-pmjs/` folder: keep it together with `OMORI (PMJS).sh` (on muOS the `.sh` goes in `/mnt/mmc/ROMS/Ports/` and the folder in `/mnt/mmc/ports/`; on ArkOS/dArkOS both go in `/roms/ports/`). The launcher then writes `OMORI-PMJS-launch.log` next to the `.sh`.
 
 ## Controls
 

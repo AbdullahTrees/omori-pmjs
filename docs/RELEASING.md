@@ -52,7 +52,7 @@ The build is clean only if the committed tree is clean. The artifact records the
 
 ## Verify on the device
 
-Install the exact ZIP and run it. Record the artifact SHA-256 from `share/out/OMORI-PMJS-<version>.zip.sha256` in a receipt:
+Install the exact ZIP and run it. First confirm that `omori-pmjs/log.txt` exists and starts with `[launcher] start`; if it does not, the launcher never ran (wrong layout, or a CRLF launcher from a Windows build). The current builder writes LF and the release check rejects CRLF, but always test the exact artifact. Record the artifact SHA-256 from `share/out/OMORI-PMJS-<version>.zip.sha256` in a receipt:
 
 ```json
 {

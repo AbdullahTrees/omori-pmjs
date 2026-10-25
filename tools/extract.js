@@ -300,7 +300,7 @@ function main() {
         var found = findKey(source, outDir, sourceFiles, !!systemRel);
         if (!found) {
             console.error('ERROR: this OMORI install is encrypted and no decryption key was found.');
-            console.error('Put the key in key.txt next to the game folder, copy Steam\'s appcache/appinfo.vdf next to it, or pass --key.');
+            console.error('Put the key in omori-key.txt next to the game folder, copy Steam\'s appcache/appinfo.vdf next to it, or pass --key.');
             return 2;
         }
         AES_KEY = found.key;

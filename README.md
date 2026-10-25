@@ -17,30 +17,44 @@ Download the latest release:
 ## Requirements
 
 - OMORI 1.0.8 from Steam, or an already-decrypted copy of the game.
-- An ARM64 device running PortMaster, with SDL2, EGL and OpenGL ES 3.0, and glibc 2.28 or newer.
+- An ARM64 device with SDL2, EGL and OpenGL ES 3.0, and glibc 2.28 or newer. PortMaster is recommended for controls and the quit hotkey; the launcher still starts without it.
 - About 5.5 GB free on the SD card for the first launch.
 
 The port has been tested on an Anbernic RG40XX-H (Allwinner H700, Mali-G31) running muOS 2502.0 at 640x480. Other CFWs and resolutions have not been tested.
 
 ## Install
 
-Download the ZIP from [Releases](https://github.com/AbdullahTrees/omori-pmjs/releases/latest).
+Download the ZIP from [Releases](https://github.com/AbdullahTrees/omori-pmjs/releases/latest). It contains `OMORI (PMJS).sh` and the `omori-pmjs/` folder; keep both.
 
-1. Copy `OMORI (PMJS).sh` to the firmware's Ports folder (`/mnt/mmc/ROMS/Ports/` on muOS, `/roms/ports/` elsewhere).
-2. Copy the `omori-pmjs/` folder to the firmware's ports storage (`/mnt/mmc/ports/` on muOS).
-3. Copy your Steam OMORI install into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists.
-4. Put the game's 32-character decryption key in `omori-pmjs/gamedata/key.txt` (see below).
-5. Launch OMORI (PMJS) from the Ports menu.
+1. Put the two parts in the Ports locations for your firmware:
+
+   | Firmware | `OMORI (PMJS).sh` | `omori-pmjs/` |
+   | --- | --- | --- |
+   | muOS | `/mnt/mmc/ROMS/Ports/` | `/mnt/mmc/ports/` |
+   | ArkOS / dArkOS (R36S) | `/roms/ports/` | `/roms/ports/` |
+   | Knulli / Batocera | `/userdata/roms/ports/` | `/userdata/roms/ports/` |
+
+   PortMaster can also install the ZIP from its autoinstall folder; it places both parts correctly.
+
+2. Copy your Steam OMORI install into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists.
+3. Put the game's 32-character decryption key in `omori-pmjs/gamedata/omori-key.txt` (see below). A template file is included: replace its whole contents with your key. Alternatively, copy Steam's `appcache/appinfo.vdf` into `gamedata/`.
+4. Launch OMORI (PMJS) from the Ports menu.
 
 The first launch converts the game files and prepares an image/map cache. It takes about 25 minutes and needs about 5.5 GB free. Later launches take about a minute to the title screen.
+
+## If it does not start
+
+The launcher writes `omori-pmjs/log.txt` and keeps the previous run as `log.prev.txt`. If neither exists, the launcher could not find the port folder: check that `OMORI (PMJS).sh` and `omori-pmjs/` are in the locations above and that the whole ZIP was extracted (do not launch the `.sh` from inside the ZIP). In that case it also writes `OMORI-PMJS-launch.log` next to the `.sh`. The first log lines list the kernel, device model, libraries and GL context.
+
+Send `log.txt` and `log.prev.txt` when reporting a failure. A missing key or `appinfo.vdf` is reported by name during the first-launch conversion.
 
 ## Steam decryption key
 
 The game files alone do not contain the key. Steam supplies it in its launch configuration. On the handheld:
 
 1. On your PC, open Steam's `appcache/appinfo.vdf` with a text or hex editor. On Windows it is normally `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`.
-2. Search for `OMORI.exe`. The next string is `--` followed by 32 characters.
-3. Save those 32 characters as `gamedata/key.txt` on the SD card.
+2. Search for `OMORI.exe`. The next string is `--` followed by 32 characters. (The macOS entry after it contains the same key.)
+3. Save those 32 characters as `gamedata/omori-key.txt` on the SD card, replacing the template file.
 
 Alternatively, copy `appinfo.vdf` itself into `gamedata/`; the converter finds the key automatically. A `.bat`, `.sh` or `.cmd` launch script next to `OMORI.exe`, the `OMORI_KEY` environment variable, and `--key` on `tools/extract.js` also work. A copy of the game that is already decrypted needs no key.
 

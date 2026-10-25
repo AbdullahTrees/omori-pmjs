@@ -2,7 +2,7 @@
 
 This is the short, end-to-end playbook. The full reference is [docs/RELEASING.md](docs/RELEASING.md).
 
-The normal path starts with your work already committed and pushed to `main`, and ends with a Latest GitHub release. Run these steps from the repository root on Windows (Git Bash + WSL) or Linux with `gh`, Python 3 and the PMJS build environment available. On Windows, WSL builds the ARM64 ZIP; on Linux the build runs locally. `gh` publishes either way.
+The normal path starts with your work already committed and pushed to `main`, and ends with a Latest GitHub release. Run these steps from the repository root on Windows (Git Bash) or Linux with `gh`, Python 3 and the PMJS build environment available. On Windows the ZIP builds natively with Python (pass `--no-strip`; MSYS `strip` cannot read ARM64 ELF); on Linux the build runs locally. `gh` publishes either way.
 
 ## 0. Start from a clean, pushed main
 
@@ -57,8 +57,8 @@ This command:
 
 1. writes `docs/releases/2026.10.25.md` from the template and updates `CHANGELOG.md`;
 2. commits `Release 2026.10.25` and pushes `main` (the release is built from this commit);
-3. builds `share/out/OMORI-PMJS-2026.10.25.zip` (WSL on Windows, locally on Linux);
-4. validates the ZIP: top-level layout, metadata, screenshot size, licenses, key-free converter and provenance;
+3. builds `share/out/OMORI-PMJS-2026.10.25.zip` (natively on Windows or Linux);
+4. validates the ZIP: top-level layout, metadata, screenshot size, licenses, key-free converter, LF shell scripts and provenance;
 5. prints the artifact path and SHA-256.
 
 Use `--changes-file FILE` for a longer note, `--co-author` to add the Claude Code co-author trailer, `--force` to overwrite an existing notes file, or `--no-build` to prepare only the notes/commit. Keep a changes file outside the repository or in the git-ignored `share/out/`; an untracked file inside the repo makes `prepare` refuse a dirty tree. Separate changes with semicolons or put each on its own bullet in a file. Re-running `prepare` after its release commit resumes at the build instead of adding a second commit; the changelog section is replaced, not duplicated.
@@ -178,7 +178,8 @@ https://github.com/AbdullahTrees/omori-pmjs/releases/latest/download/OMORI-PMJS.
 | `receipt sha256 does not match` | The receipt is for a different ZIP; use the `.sha256` next to the artifact. |
 | `a device receipt is required` | Test and pass `--receipt`, or use `--skip-device-check`/`--prerelease`. |
 | `gh: ... not logged in` or 403 | `gh auth switch --user AbdullahTrees`, or set `GH_TOKEN`. |
-| `warning: no strip tool found` or `strip: Unable to recognise the format` | Source `~/omori-test/build-env/env.sh` in WSL/Linux; `release.sh` does this automatically when present. |
+| `warning: no strip tool found` or `strip: Unable to recognise the format` | On Windows, pass `--no-strip` to `tools/release-build.py`; MSYS `strip` cannot read ARM64 ELF. On Linux, source `~/omori-test/build-env/env.sh`; `release.sh` does this automatically when present. |
+| Device exits immediately and no `log.txt` appears; `bad interpreter` in a shell | The launcher has CRLF line endings. Rebuild with the current builder (it writes LF and refuses CRLF); do not publish the ZIP. |
 
 If the tag was pushed but the release was not published, fix the cause, remove the local and remote tag (and any partial release), then retry:
 
