@@ -14,7 +14,7 @@ No game files are included; the launcher converts a Steam install in gamedata/
 on first launch (or uses a pre-converted www/).
 
 Run in WSL (the runtime is an ARM64 Linux tree with exec bits):
-  python3 tools/release-build.py \
+  python3 /mnt/c/.../omori-handover/tools/release-build.py \
       [--runtime ~/omori-test/pmjs-int3/dist/pmjs-arm64] \
       [--runtime-src ~/omori-test/pmjs-int3] [--out .../share/out]
 """
@@ -35,6 +35,11 @@ SCHEMA = 1
 SCRIPT = Path(__file__).resolve()
 SOURCE_ROOT = SCRIPT.parent.parent
 NOTICE_HEADER = 'The following license text is shipped with the corresponding component in this package.'
+EXECUTABLE_ENTRIES = frozenset({
+    'OMORI (PMJS).sh',
+    'omori-pmjs/runtime/bin/node',
+    'omori-pmjs/runtime/bin/pmjs',
+})
 
 
 def run(*args, cwd=None):
@@ -79,10 +84,11 @@ def write_text(path, text):
 def payload_inventory(root):
     files = {}
     for path in sorted(root.rglob('*')):
+        rel = str(path.relative_to(root)).replace(os.sep, '/')
         if path.is_file() and not path.is_symlink():
-            files[str(path.relative_to(root))] = {'size': path.stat().st_size, 'sha256': sha256(path)}
+            files[rel] = {'size': path.stat().st_size, 'sha256': sha256(path)}
         elif path.is_symlink():
-            files[str(path.relative_to(root))] = {'symlink': os.readlink(path)}
+            files[rel] = {'symlink': os.readlink(path)}
     return files
 
 
@@ -93,6 +99,7 @@ def zip_tree(source, output, epoch):
             rel = os.path.relpath(root, source)
             if rel != '.' and not files and not dirs:
                 info = zipfile.ZipInfo(rel.replace(os.sep, '/') + '/')
+                info.create_system = 3
                 info.date_time = time.gmtime(max(315532800, epoch))[:6]
                 info.external_attr = (0o40755 << 16) | 0x10
                 bundle.writestr(info, b'')
@@ -100,13 +107,18 @@ def zip_tree(source, output, epoch):
                 path = Path(root) / name
                 arc = os.path.relpath(path, source).replace(os.sep, '/')
                 info = zipfile.ZipInfo(arc)
+                # Info-ZIP ignores external_attr when the entry claims a FAT host.
+                info.create_system = 3
                 info.date_time = time.gmtime(max(315532800, epoch))[:6]
                 info.compress_type = zipfile.ZIP_DEFLATED
                 if path.is_symlink():
                     info.external_attr = (0o120777 << 16)
                     bundle.writestr(info, os.readlink(path))
                 else:
-                    info.external_attr = (path.stat().st_mode & 0xFFFF) << 16
+                    # Write Unix modes explicitly: the builder also runs on Windows,
+                    # where stat() carries no execute bits.
+                    mode = 0o755 if arc in EXECUTABLE_ENTRIES else 0o644
+                    info.external_attr = ((0o100000 | mode) << 16)
                     bundle.writestr(info, path.read_bytes(), compresslevel=9)
 
 
@@ -202,8 +214,6 @@ def stage_metadata(port, metadata, require_screenshot):
     gamedata.mkdir()
     write_text(gamedata / 'README.txt',
                'Copy your OMORI installation here, so that gamedata/www/index.html exists.\n'
-               'For the Steam release, put the 32-character key in gamedata/key.txt, or copy\n'
-               "Steam's appcache/appinfo.vdf here.\n"
                'The launcher converts it to ../www/ on first launch. See ../README.md.\n')
 
 
@@ -240,6 +250,10 @@ def main():
                         default=Path.home() / 'omori-test/pmjs-int3/dist/pmjs-arm64')
     parser.add_argument('--runtime-src', type=Path,
                         default=Path.home() / 'omori-test/pmjs-int3')
+    parser.add_argument('--port-source', type=Path,
+                        help='OmoriSource checkout to stage and record; defaults to the tool tree')
+    parser.add_argument('--port-source-label',
+                        help='Source label in the public manifest; defaults to the checkout directory name')
     parser.add_argument('--out', type=Path, default=SOURCE_ROOT / 'share' / 'out')
     parser.add_argument('--metadata', type=Path, default=SOURCE_ROOT / 'share/omori-pmjs/metadata')
     parser.add_argument('--licenses-extra', type=Path, default=SOURCE_ROOT / 'share/omori-pmjs/licenses-extra')
@@ -258,7 +272,7 @@ def main():
                         help='Fail if metadata/screenshot.png is missing')
     args = parser.parse_args()
 
-    repo = SOURCE_ROOT.resolve()
+    repo = (args.port_source or SOURCE_ROOT).resolve()
     runtime = args.runtime.resolve()
     runtime_src = args.runtime_src.resolve()
     out = args.out.resolve()
@@ -359,7 +373,7 @@ def main():
             'fastPaths': {'default': args.perf_extra == '1',
                           'modules': [module.name for module in perf_modules]},
             'runtime': {'source': pmjs, 'buildInfo': build_info},
-            'portSource': {'source': omori, 'repo': 'https://github.com/AbdullahTrees/omori-pmjs'},
+            'portSource': {'source': omori, 'repo': args.port_source_label or repo.name},
             'payload': payload_inventory(port),
         }
         (port / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')

@@ -4,7 +4,7 @@ Thanks to [OMOCAT](https://www.omori-game.com/) for OMORI, a hand-drawn psycholo
 
 OMORI is a commercial game. This package does not include its game files. Copy your Steam OMORI install (v1.0.8) into `ports/omori-pmjs/gamedata/` before the first launch. The launcher converts your files and prepares a device cache; allow about 25 minutes and 5.5 GB of free space. After that, launches take about a minute to the title screen. Saves are kept in `ports/omori-pmjs/saves/`.
 
-The Steam release is encrypted, and the game files alone do not contain the key. Steam supplies it in its launch configuration. Put the 32-character key in `ports/omori-pmjs/gamedata/key.txt` before the first launch. On Windows, the key is the `--` argument after `OMORI.exe` in Steam's `appcache/appinfo.vdf` (normally `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`): open it with a text or hex editor, search for `OMORI.exe`, and copy the 32 characters after the `--`. Alternatively, copy `appinfo.vdf` itself into `gamedata/` and the converter will read the key automatically. A `.bat`, `.sh` or `.cmd` launch script next to `OMORI.exe` or the `OMORI_KEY` environment variable also works. A copy of the game that is already decrypted needs no key.
+The Steam release is encrypted and this package contains no key. The launcher looks for the key in a `.bat`, `.sh` or `.cmd` launch script next to the game, in `gamedata/appinfo.vdf`, in the `OMORI_KEY` environment variable, or in `gamedata/omori-key.txt`. If your install has no launch script, copy Steam's `appcache/appinfo.vdf` (on Windows, `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`) into `gamedata/` before the first launch. A copy of the game that is already decrypted needs no key.
 
 ## Controls
 
@@ -21,21 +21,21 @@ The Steam release is encrypted, and the game files alone do not contain the key.
 
 ## Compile
 
-The runtime is PMJS for Linux ARM64. This release was built from the port's [source repository](https://github.com/AbdullahTrees/omori-pmjs), using PMJS upstream `bbbreaddd/pmjs` at `d551972` plus the port's performance, preparation and compatibility commits. The exact runtime and port commits are recorded in `manifest.json`.
+The runtime is PMJS for Linux ARM64. This release was built from the public `fix/sdl-gl-context` branch at `ec9235d`: `test/device-integration-3` at `643396e` (upstream `bbbreaddd/pmjs` at `d551972` plus the port's performance, preparation and compatibility commits) and the SDL/EGL presentation-context fix. The source is at https://github.com/AbdullahTrees/pmjs/tree/fix/sdl-gl-context; the exact commit and payload hashes are recorded in `manifest.json`.
 
 ### Runtime
 
 Use a 64-bit Linux build host. The build needs Python 3, CMake, Ninja, Clang/LLVM 20 and the development packages listed in PMJS's build guide.
 
 ```bash
-git clone https://github.com/bbbreaddd/pmjs.git
+git clone https://github.com/AbdullahTrees/pmjs.git
 cd pmjs
-git checkout d551972
+git checkout ec9235d
 python3 tools/dependencies.py --jobs 4
 ./build.sh --target arm64 --jobs 12
 ```
 
-The runtime is written to `dist/pmjs-arm64`. It bundles Node, FFmpeg and Skia; SDL2, EGL and GLES come from the firmware.
+The runtime is written to `dist/pmjs-arm64`. It bundles Node, FFmpeg and Skia; SDL2, EGL and GLES come from the firmware. Some firmware SDL builds make the GL context current through a different EGL provider than the runtime's linked libEGL (ArkOS on the R36S is one); the runtime asks SDL for the current context and logs both views at startup so a split provider is visible.
 
 ### Game-side patches
 

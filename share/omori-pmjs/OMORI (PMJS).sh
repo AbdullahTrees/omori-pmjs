@@ -38,6 +38,22 @@ export XDG_CACHE_HOME="$GAMEDIR/.cache"
 
 mkdir -p "$GAMEDIR/saves" "$GAMEDIR/.cache"
 
+# Startup inventory: the first thing to read when a device fails before the first frame.
+export PMJS_GRAPHICS_DIAGNOSTICS="${PMJS_GRAPHICS_DIAGNOSTICS:-1}"
+{
+  echo "[tech] kernel=$(uname -r) arch=$(uname -m) model=$(tr -d '\0' < /sys/firmware/devicetree/base/model 2>/dev/null)"
+  echo "[tech] libc=$(getconf GNU_LIBC_VERSION 2>/dev/null)"
+  for lib in libSDL2-2.0.so.0 libEGL.so.1 libGLESv2.so.2; do
+    for dir in /usr/lib /usr/lib64 /lib /lib64; do
+      if [ -e "$dir/$lib" ]; then
+        echo "[tech] $lib=$dir/$lib -> $(readlink -f "$dir/$lib" 2>/dev/null || echo "$dir/$lib")"
+        break
+      fi
+    done
+  done
+  echo "[tech] SDL_VIDEO_EGL_DRIVER=${SDL_VIDEO_EGL_DRIVER:-<unset>} SDL_VIDEO_GL_DRIVER=${SDL_VIDEO_GL_DRIVER:-<unset>}"
+} 2>/dev/null
+
 # First launch: convert the player's own OMORI install in gamedata/ to www/.
 if [ ! -f "$GAME/index.html" ]; then
   SOURCE=""
@@ -60,7 +76,7 @@ if [ ! -f "$GAME/index.html" ]; then
   rm -rf "$GAMEDIR/www.partial"
   if ! "$RUNTIME/bin/$BINARY" "$GAMEDIR/tools/extract.js" "$SOURCE" "$GAMEDIR/www.partial"; then
     rm -rf "$GAMEDIR/www.partial"
-    pm_show_error "Could not convert the OMORI files. For the Steam release, put the key in gamedata/key.txt (32 characters) or copy Steam's appcache/appinfo.vdf into gamedata/. See log.txt for details." --title "Conversion failed" --type error
+    pm_show_error "Could not convert the OMORI files. For the Steam release, copy Steam's appcache/appinfo.vdf into gamedata/ or put your key in gamedata/omori-key.txt. See log.txt for details." --title "Conversion failed" --type error
     exit 1
   fi
   rm -rf "$GAMEDIR/www"

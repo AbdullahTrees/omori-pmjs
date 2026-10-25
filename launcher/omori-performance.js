@@ -50,6 +50,10 @@
   // out, and is attached to the spriteset while its text is not empty. After a sprite's first full
   // update it either has its label, a pending countdown, or no label plugin is installed.
   function labelAllowsSkip(sprite) {
+    // The lazy-label patch records a page that can never show a label by setting this flag
+    // (no window is constructed). That is exactly the state in which vanilla would have an
+    // empty unparented window, so the sprite is safe to skip.
+    if (sprite._omoriMiniLabelAbsent) return true;
     var label = sprite._miniLabel;
     if (label) return !label.parent && label._text === '';
     if (sprite._labelDelay === undefined) return typeof sprite.setupMiniLabel !== 'function';
@@ -61,6 +65,17 @@
     sprite.updateAnimation();
   }
 
+  // A skipped map-event sprite must still follow its character's screen position. An event that
+  // is teleported (or crosses the skip margin in one step, as hide-and-seek scripts do) would
+  // otherwise freeze at its last on-screen x/y and stay visible as a ghost while the camera
+  // moves. Position and visibility are cheap property writes; the presentation work (bitmap,
+  // frame, pattern, balloon/other) stays skipped and is redone in full on the first visible step.
+  function skipEvent(sprite) {
+    skip(sprite);
+    if (typeof sprite.updatePosition === 'function') sprite.updatePosition();
+    if (typeof sprite.updateVisibility === 'function') sprite.updateVisibility();
+  }
+
   function offscreen(sprite, character) {
     var frame = sprite._frame, scale = Math.max(Math.abs(sprite.scale.x), Math.abs(sprite.scale.y), 1);
     var m = MARGIN + 2 * Math.max(frame.width, frame.height) * scale;
@@ -68,11 +83,30 @@
     return x < -m || y < -m || x > Graphics.width + m || y > Graphics.height + m;
   }
 
+  var installTimer = null, installWaits = 0;
+
   function install() {
-    if (stats.installed) return;
+    if (stats.installed) {
+      if (installTimer) { clearInterval(installTimer); installTimer = null; }
+      return;
+    }
     if (typeof Sprite_Character !== 'function' || typeof Spriteset_Map !== 'function' ||
-        typeof Game_Event !== 'function') return;
+        typeof Game_Event !== 'function') {
+      // The afterPlugins phase has fired before the core classes in some bootstraps. Retry
+      // instead of silently leaving every sprite on the full update path.
+      if (!installTimer) {
+        console.log('[omori-perf] sprite culling waiting for core classes');
+        installTimer = setInterval(install, 100);
+      }
+      if (++installWaits > 100) {
+        clearInterval(installTimer); installTimer = null;
+        console.log('[omori-perf] sprite culling unavailable: core classes missing');
+      }
+      return;
+    }
+    if (installTimer) { clearInterval(installTimer); installTimer = null; }
     stats.installed = true;
+    console.log('[omori-perf] sprite culling installed');
 
     var spritesetUpdate = Spriteset_Map.prototype.update;
     Spriteset_Map.prototype.update = function () {
@@ -89,7 +123,7 @@
       var character = this._character;
       if (stats.enabled && inSpriteset && plainView && this._omoriUpdated && character instanceof Game_Event &&
           !busy(this, character) && labelAllowsSkip(this) && offscreen(this, character)) {
-        skip(this);
+        skipEvent(this);
         stats.offscreen++;
         return;
       }
