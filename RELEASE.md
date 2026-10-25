@@ -61,7 +61,7 @@ This command:
 4. validates the ZIP: top-level layout, metadata, screenshot size, licenses, key-free converter, LF shell scripts and provenance;
 5. prints the artifact path and SHA-256.
 
-Use `--changes-file FILE` for a longer note, `--co-author` to add the Claude Code co-author trailer, `--force` to overwrite an existing notes file, or `--no-build` to prepare only the notes/commit. Keep a changes file outside the repository or in the git-ignored `share/out/`; an untracked file inside the repo makes `prepare` refuse a dirty tree. Separate changes with semicolons or put each on its own bullet in a file. Re-running `prepare` after its release commit resumes at the build instead of adding a second commit; the changelog section is replaced, not duplicated.
+Use `--changes-file FILE` for a longer note, `--force` to overwrite an existing notes file, or `--no-build` to prepare only the notes/commit. Keep a changes file outside the repository or in the git-ignored `share/out/`; an untracked file inside the repo makes `prepare` refuse a dirty tree. Separate changes with semicolons or put each on its own bullet in a file. Re-running `prepare` after its release commit resumes at the build instead of adding a second commit; the changelog section is replaced, not duplicated.
 
 If `prepare` commits and pushes but the build or artifact check fails, fix the cause and run:
 

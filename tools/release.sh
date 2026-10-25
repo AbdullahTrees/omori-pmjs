@@ -26,7 +26,7 @@ MODE=${1:-help}
 if [ $# -gt 0 ]; then shift; fi
 
 VERSION= CHANGES= CHANGES_FILE= ARTIFACT= RECEIPT= COMMIT=
-PRERELEASE=0 DRY_RUN=0 FORCE=0 ALLOW_UNVERIFIED=0 CO_AUTHOR=0 NO_BUILD=0
+PRERELEASE=0 DRY_RUN=0 FORCE=0 ALLOW_UNVERIFIED=0 NO_BUILD=0
 
 usage() {
   cat <<'EOF'
@@ -53,7 +53,6 @@ Options:
   --dry-run               Preview actions; only a local release-body file may be written, never commits or GitHub changes.
   --force                 Overwrite an existing notes file in prepare.
   --no-build              prepare without building the ZIP.
-  --co-author             Add the Claude Code co-author trailer to the release commit.
   --repo OWNER/REPO       GitHub repository (default AbdullahTrees/omori-pmjs).
   --branch BRANCH         Branch to release from (default main).
 EOF
@@ -249,11 +248,7 @@ cmd_prepare() {
     return 0
   fi
   git add "docs/releases/$VERSION.md" CHANGELOG.md
-  if [ "$CO_AUTHOR" = 1 ]; then
-    git commit -m "Release $VERSION" -m "$CHANGES" -m "Co-Authored-By: Claude Code <noreply@anthropic.com>"
-  else
-    git commit -m "Release $VERSION" -m "$CHANGES"
-  fi
+  git commit -m "Release $VERSION" -m "$CHANGES"
   git push origin "$BRANCH"
   if [ "$NO_BUILD" = 0 ]; then
     build_artifact
@@ -407,7 +402,6 @@ while [ $# -gt 0 ]; do
     --skip-device-check|--allow-unverified) ALLOW_UNVERIFIED=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --force) FORCE=1; shift ;;
-    --co-author) CO_AUTHOR=1; shift ;;
     --no-build) NO_BUILD=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;

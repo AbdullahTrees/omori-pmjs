@@ -43,8 +43,7 @@ export PMJS_RUNTIME_SRC="/home/<wsl-user>/omori-test/pmjs-int3"
 ```bash
 tools/release.sh prepare \
   --version v0.7.2 \
-  --changes "Fixed the title-screen crash; Improved cache reuse on the first map." \
-  --co-author
+  --changes "Fixed the title-screen crash; Improved cache reuse on the first map."
 ```
 
 This:
