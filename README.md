@@ -90,9 +90,9 @@ The runtime is written to `dist/pmjs-arm64`. The 64-bit Linux build needs Python
 Build and publish a release from this repository:
 
 ```bash
-tools/release.sh prepare --version 2026.10.25 --changes "Fixed X; Improved Y"
-# device-test share/out/OMORI-PMJS-2026.10.25.zip and write a receipt
-tools/release.sh publish --version 2026.10.25 --receipt receipt.json
+tools/release.sh prepare --version v0.7.2 --changes "Fixed X; Improved Y"
+# device-test share/out/OMORI-PMJS-v0.7.2.zip and write a receipt
+tools/release.sh publish --version v0.7.2 --receipt receipt.json
 ```
 
 `prepare` commits the notes and changelog, pushes `main`, builds the ZIP and checks it. `publish` creates the Latest GitHub release with the versioned ZIP, the stable `OMORI-PMJS.zip`, the checksum, manifest, screenshot and device receipt. See [RELEASE.md](RELEASE.md) for the short playbook and [docs/RELEASING.md](docs/RELEASING.md) for the full process and the receipt format.

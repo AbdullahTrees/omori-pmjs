@@ -43,21 +43,21 @@ Game-side JavaScript, metadata, patches or documentation changes do not need a r
 
 ## 1. Choose the version
 
-Use `YYYY.MM.DD`. For a second release on the same day, use `YYYY.MM.DD.2`, `.3`, and so on. The tag is `OMORI-PMJS-<version>` and the ZIP is `OMORI-PMJS-<version>.zip`.
+Use semantic versioning with a leading `v`: `vMAJOR.MINOR.PATCH`. Start at `v0.7.2`; the next patch fix is `v0.7.3`, a feature release `v0.8.0`, and a breaking change `v1.0.0`. The tag is the version (`v0.7.2`), the ZIP is `OMORI-PMJS-v0.7.2.zip`, and the notes are `docs/releases/v0.7.2.md`. Historical date-tagged releases keep their `OMORI-PMJS-<date>` tags.
 
 ## 2. Prepare the release
 
 ```bash
 tools/release.sh prepare \
-  --version 2026.10.25 \
+  --version v0.7.2 \
   --changes "Fixed the title-screen crash; Improved cache reuse on the first map."
 ```
 
 This command:
 
-1. writes `docs/releases/2026.10.25.md` from the template and updates `CHANGELOG.md`;
-2. commits `Release 2026.10.25` and pushes `main` (the release is built from this commit);
-3. builds `share/out/OMORI-PMJS-2026.10.25.zip` (natively on Windows or Linux);
+1. writes `docs/releases/v0.7.2.md` from the template and updates `CHANGELOG.md`;
+2. commits `Release v0.7.2` and pushes `main` (the release is built from this commit);
+3. builds `share/out/OMORI-PMJS-v0.7.2.zip` (natively on Windows or Linux);
 4. validates the ZIP: top-level layout, metadata, screenshot size, licenses, key-free converter, LF shell scripts and provenance;
 5. prints the artifact path and SHA-256.
 
@@ -66,7 +66,7 @@ Use `--changes-file FILE` for a longer note, `--co-author` to add the Claude Cod
 If `prepare` commits and pushes but the build or artifact check fails, fix the cause and run:
 
 ```bash
-tools/release.sh build --version 2026.10.25
+tools/release.sh build --version v0.7.2
 ```
 
 That builds and checks the current pushed commit without another commit. Do not re-run `prepare` with `--force` for this; use a new version if the notes themselves need to change.
@@ -82,8 +82,8 @@ Write a receipt next to the artifact (outside the repository, or in the git-igno
 ```json
 {
   "schema": 1,
-  "version": "2026.10.25",
-  "sha256": "<the 64-character hash from the first field of share/out/OMORI-PMJS-2026.10.25.zip.sha256>",
+  "version": "v0.7.2",
+  "sha256": "<the 64-character hash from the first field of share/out/OMORI-PMJS-v0.7.2.zip.sha256>",
   "device": "Anbernic RG40XX-H",
   "cfw": "muOS 2502.0",
   "resolution": "640x480",
@@ -101,7 +101,7 @@ With a device receipt:
 
 ```bash
 tools/release.sh publish \
-  --version 2026.10.25 \
+  --version v0.7.2 \
   --receipt /path/to/device-receipt.json
 ```
 
@@ -112,9 +112,9 @@ This checks that:
 - the working tree is clean and `main` is pushed;
 - the tag and GitHub release do not already exist.
 
-It then tags the commit, pushes `OMORI-PMJS-2026.10.25`, and creates a **Latest** GitHub release with:
+It then tags the commit, pushes `v0.7.2`, and creates a **Latest** GitHub release with:
 
-- `OMORI-PMJS-2026.10.25.zip`
+- `OMORI-PMJS-v0.7.2.zip`
 - `OMORI-PMJS.zip` (stable name, so `/releases/latest/download/OMORI-PMJS.zip` always works)
 - the `.sha256`, manifest JSON, gameplay screenshot and device receipt
 
@@ -123,13 +123,13 @@ It then tags the commit, pushes `OMORI-PMJS-2026.10.25`, and creates a **Latest*
 Publish the full release anyway, explicitly:
 
 ```bash
-tools/release.sh publish --version 2026.10.25 --skip-device-check
+tools/release.sh publish --version v0.7.2 --skip-device-check
 ```
 
 `--allow-unverified` is an alias. The release is created as **Latest** and marked **Unverified** in its body. When a device becomes available, test the same ZIP and promote it:
 
 ```bash
-tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.json
+tools/release.sh promote --version v0.7.2 --receipt /path/to/device-receipt.json
 ```
 
 `promote` verifies the artifact against the release tag, uploads the receipt, replaces the Unverified note with the device verification, and marks the release **Latest**. The tag and download URLs do not move. It needs a clean working tree and the original `share/out/OMORI-PMJS-<version>.zip`; keep that file until you have promoted or decided to publish a new version.
@@ -137,7 +137,7 @@ tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.
 ### Test-only release
 
 ```bash
-tools/release.sh publish --version 2026.10.25 --prerelease
+tools/release.sh publish --version v0.7.2 --prerelease
 ```
 
 A prerelease is not Latest; `promote` can turn it into the verified Latest release later.
@@ -147,17 +147,17 @@ A prerelease is not Latest; `promote` can turn it into the verified Latest relea
 Validate the artifact and receipt, or render the release body without changing GitHub:
 
 ```bash
-tools/release.sh check --version 2026.10.25 --receipt /path/to/device-receipt.json
-tools/release.sh publish --version 2026.10.25 --receipt /path/to/device-receipt.json --dry-run
+tools/release.sh check --version v0.7.2 --receipt /path/to/device-receipt.json
+tools/release.sh publish --version v0.7.2 --receipt /path/to/device-receipt.json --dry-run
 ```
 
-`publish --dry-run` writes the body to `share/out/release-body-<version>.md` and prints its path; it does not tag, push or upload. `check` does not need a clean tree; `publish --dry-run` still requires `main` to be clean and pushed because it is the final preflight. To check an artifact that was built before later commits, add `--commit OMORI-PMJS-<version>`; the script resolves the tag to its commit.
+`publish --dry-run` writes the body to `share/out/release-body-<version>.md` and prints its path; it does not tag, push or upload. `check` does not need a clean tree; `publish --dry-run` still requires `main` to be clean and pushed because it is the final preflight. To check an artifact that was built before later commits, add `--commit <tag>`; the script resolves the tag to its commit (`v0.7.2` for a semantic release, `OMORI-PMJS-<date>` for a historical one).
 
 ## 5. Verify the result
 
 ```bash
 tools/release.sh status
-gh release view OMORI-PMJS-2026.10.25 -R AbdullahTrees/omori-pmjs
+gh release view v0.7.2 -R AbdullahTrees/omori-pmjs
 gh api repos/AbdullahTrees/omori-pmjs/releases/latest --jq .tag_name
 ```
 
@@ -184,7 +184,7 @@ https://github.com/AbdullahTrees/omori-pmjs/releases/latest/download/OMORI-PMJS.
 If the tag was pushed but the release was not published, fix the cause, remove the local and remote tag (and any partial release), then retry:
 
 ```bash
-TAG=OMORI-PMJS-2026.10.25
+TAG=v0.7.2
 gh release delete "$TAG" -R AbdullahTrees/omori-pmjs --yes --cleanup-tag || true
 git tag -d "$TAG" || true
 git push origin ":refs/tags/$TAG" || true

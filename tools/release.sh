@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # OMORI (PMJS) release pipeline.
 #
-#   tools/release.sh prepare  --version 2026.10.25 --changes "Fixed X; Improved Y"
-#   tools/release.sh check    --version 2026.10.25 [--receipt device.json]
-#   tools/release.sh publish  --version 2026.10.25 --receipt device.json
+#   tools/release.sh prepare  --version v0.7.2 --changes "Fixed X; Improved Y"
+#   tools/release.sh check    --version v0.7.2 [--receipt device.json]
+#   tools/release.sh publish  --version v0.7.2 --receipt device.json
 #   tools/release.sh status
 #
 # prepare writes docs/releases/<version>.md and CHANGELOG.md, commits and
@@ -42,7 +42,7 @@ Commands:
   help      This text.
 
 Options:
-  --version VERSION       Release version (default for prepare: YYYY.MM.DD[.N]).
+  --version VERSION       Semantic version, e.g. v0.7.2 (required for prepare). Legacy date versions still work for check/promote.
   --changes TEXT          One-line or semicolon-separated changes (prepare).
   --changes-file FILE     Read changes from a file (prepare).
   --artifact FILE         ZIP to check/publish (default share/out/OMORI-PMJS-<version>.zip).
@@ -99,16 +99,11 @@ require_sync() {
     || die "local $BRANCH is not pushed to origin; push first"
 }
 
-default_version() {
-  local base n v
-  base=$(date +%Y.%m.%d)
-  v=$base
-  n=2
-  while git rev-parse -q --verify "refs/tags/$TAG_PREFIX$v" >/dev/null 2>&1; do
-    v="$base.$n"
-    n=$((n + 1))
-  done
-  printf '%s\n' "$v"
+tag_for_version() {
+  case "$1" in
+    v[0-9]*) printf '%s\n' "$1" ;;
+    *) printf '%s%s\n' "$TAG_PREFIX" "$1" ;;
+  esac
 }
 
 CHECK_SHA= CHECK_SIZE= CHECK_COMMIT= CHECK_DEVICE= CHECK_CFW= CHECK_RESOLUTION= CHECK_TESTS=
@@ -217,14 +212,18 @@ write_notes() {
 cmd_prepare() {
   require_clean
   [ "$(git rev-parse --abbrev-ref HEAD)" = "$BRANCH" ] || die "not on branch $BRANCH"
-  [ -n "$VERSION" ] || VERSION=$(default_version)
+  [ -n "$VERSION" ] || die "--version is required; use a semantic version such as v0.7.3"
+  [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || die "prepare requires a semantic version such as v0.7.3"
+  local tag
+  tag=$(tag_for_version "$VERSION")
   if [ -n "$CHANGES_FILE" ]; then
     [ -f "$CHANGES_FILE" ] || die "changes file not found: $CHANGES_FILE"
     CHANGES=$(tr -d '\r' < "$CHANGES_FILE")
   fi
   [ -n "$CHANGES" ] || die "--changes or --changes-file is required"
-  if git rev-parse -q --verify "refs/tags/$TAG_PREFIX$VERSION" >/dev/null 2>&1; then
-    die "tag $TAG_PREFIX$VERSION already exists"
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+    die "tag $tag already exists"
   fi
   if [ "$(git log -1 --format=%s)" = "Release $VERSION" ] && [ -f "docs/releases/$VERSION.md" ]; then
     say "release commit for $VERSION is already HEAD; resuming with the build"
@@ -325,7 +324,7 @@ cmd_publish() {
   local head tag stable body
   head=$(git rev-parse HEAD)
   check_artifact "$ARTIFACT" "$RECEIPT" "$head"
-  tag="$TAG_PREFIX$VERSION"
+  tag=$(tag_for_version "$VERSION")
   if git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
     die "tag $tag already exists"
   fi
@@ -364,7 +363,7 @@ cmd_promote() {
   [ -f "$ARTIFACT" ] || die "artifact not found: $ARTIFACT"
   [ -f "$RECEIPT" ] || die "receipt not found: $RECEIPT"
   local tag tag_commit
-  tag="$TAG_PREFIX$VERSION"
+  tag=$(tag_for_version "$VERSION")
   git fetch --quiet origin "refs/tags/$tag:refs/tags/$tag" 2>/dev/null || true
   tag_commit=$(git rev-list -n1 "$tag" 2>/dev/null) || die "tag $tag not found; fetch it first"
   require_clean

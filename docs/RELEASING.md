@@ -23,7 +23,13 @@ GH_TOKEN=... tools/release.sh publish ...
 
 ## Versioning
 
-Use `YYYY.MM.DD` for a release, and append `.2`, `.3` for a second release on the same day. The tag is `OMORI-PMJS-<version>`, the ZIP is `OMORI-PMJS-<version>.zip`.
+Releases use semantic versioning with a leading `v`: `vMAJOR.MINOR.PATCH`.
+
+- PATCH (`v0.7.3`): bug fixes, packaging fixes, documentation, and compatibility fixes that keep the package layout.
+- MINOR (`v0.8.0`): new user-visible features or newly supported firmware.
+- MAJOR (`v1.0.0`): changes that break the install layout, paths, or requirements.
+
+The version is the tag (`v0.7.2`), the ZIP name (`OMORI-PMJS-v0.7.2.zip`), the notes file (`docs/releases/v0.7.2.md`), `VERSION`, `manifest.json` and the launcher log. Historical releases `2026.10.24` and `2026.10.25` predate this scheme and keep their `OMORI-PMJS-` tags. `prepare` requires a semantic version; `check` and `promote` still accept a historical date version.
 
 The builder already uses the default runtime paths inside WSL/Linux. If the PMJS runtime changed, build it first; only for a non-default runtime pass its path as WSL/Linux sees it (never a Git Bash `$HOME` path). A game-side-only fix can reuse the existing runtime:
 
@@ -36,16 +42,16 @@ export PMJS_RUNTIME_SRC="/home/<wsl-user>/omori-test/pmjs-int3"
 
 ```bash
 tools/release.sh prepare \
-  --version 2026.10.25 \
+  --version v0.7.2 \
   --changes "Fixed the title-screen crash; Improved cache reuse on the first map." \
   --co-author
 ```
 
 This:
 
-1. writes `docs/releases/2026.10.25.md` and updates `CHANGELOG.md`;
-2. commits `Release 2026.10.25` and pushes `main`;
-3. builds `share/out/OMORI-PMJS-2026.10.25.zip` from that commit (WSL);
+1. writes `docs/releases/v0.7.2.md` and updates `CHANGELOG.md`;
+2. commits `Release v0.7.2` and pushes `main`;
+3. builds `share/out/OMORI-PMJS-v0.7.2.zip` from that commit (WSL);
 4. verifies the ZIP layout, metadata, screenshot, licenses, key-free converter and provenance, and prints its SHA-256.
 
 The build is clean only if the committed tree is clean. The artifact records the source commit in its `manifest.json`.
@@ -57,7 +63,7 @@ Install the exact ZIP and run it. First confirm that `omori-pmjs/log.txt` exists
 ```json
 {
   "schema": 1,
-  "version": "2026.10.25",
+  "version": "v0.7.2",
   "sha256": "<the artifact sha256>",
   "device": "Anbernic RG40XX-H",
   "cfw": "muOS 2502.0",
@@ -81,7 +87,7 @@ Save the receipt outside the repository (or in an ignored directory) so it does 
 
 ```bash
 tools/release.sh publish \
-  --version 2026.10.25 \
+  --version v0.7.2 \
   --receipt /path/to/device-receipt.json
 ```
 
@@ -90,9 +96,9 @@ This:
 1. re-checks the artifact against the current `main` commit, the receipt and the notes;
 2. requires a clean tree whose `HEAD` equals `origin/main`;
 3. refuses an existing tag or release;
-4. creates and pushes `OMORI-PMJS-2026.10.25`;
+4. creates and pushes the tag `v0.7.2`;
 5. creates a **Latest** GitHub release with:
-   - `OMORI-PMJS-2026.10.25.zip`
+   - `OMORI-PMJS-v0.7.2.zip`
    - `OMORI-PMJS.zip` (stable name, so `/releases/latest/download/OMORI-PMJS.zip` always works)
    - the `.sha256` file and manifest JSON
    - the gameplay screenshot
@@ -101,7 +107,7 @@ This:
 For a full release without a device on hand, skip the receipt explicitly:
 
 ```bash
-tools/release.sh publish --version 2026.10.25 --skip-device-check
+tools/release.sh publish --version v0.7.2 --skip-device-check
 ```
 
 `--allow-unverified` is an alias. The release body is marked **Unverified** and the release is not held back. The default path still requires a receipt, so nobody ships an unverified build by accident.
@@ -109,7 +115,7 @@ tools/release.sh publish --version 2026.10.25 --skip-device-check
 For a test build that should not become Latest:
 
 ```bash
-tools/release.sh publish --version 2026.10.25 --prerelease
+tools/release.sh publish --version v0.7.2 --prerelease
 ```
 
 ### Promote after the device test
@@ -117,7 +123,7 @@ tools/release.sh publish --version 2026.10.25 --prerelease
 If a release was published without a receipt, test the exact ZIP later and promote it:
 
 ```bash
-tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.json
+tools/release.sh promote --version v0.7.2 --receipt /path/to/device-receipt.json
 ```
 
 `promote` verifies the artifact against the release tag, uploads the receipt, replaces the Unverified/Pre-release note with the device verification, and marks the release **Latest**. The tag and download URL do not move. It needs a clean working tree and the original `share/out/OMORI-PMJS-<version>.zip`.
@@ -125,11 +131,11 @@ tools/release.sh promote --version 2026.10.25 --receipt /path/to/device-receipt.
 ## Check without publishing
 
 ```bash
-tools/release.sh check --version 2026.10.25 --receipt /path/to/device-receipt.json
-tools/release.sh publish --version 2026.10.25 --receipt ... --dry-run
+tools/release.sh check --version v0.7.2 --receipt /path/to/device-receipt.json
+tools/release.sh publish --version v0.7.2 --receipt ... --dry-run
 ```
 
-`check` verifies the artifact and receipt but does not tag or upload; add `--commit OMORI-PMJS-<version>` to check an artifact built before later commits. `--dry-run` writes the release body to `share/out/release-body-<version>.md` and prints its path; it does not touch GitHub.
+`check` verifies the artifact and receipt but does not tag or upload; add `--commit <tag>` to check an artifact built before later commits (`v0.7.2` for a semantic release, `OMORI-PMJS-<date>` for a historical one). `--dry-run` writes the release body to `share/out/release-body-<version>.md` and prints its path; it does not touch GitHub.
 
 ## How the release stays prominent
 
@@ -142,7 +148,7 @@ tools/release.sh publish --version 2026.10.25 --receipt ... --dry-run
 
 - The tag is pushed before the release is created. If upload fails, fix the cause and remove the local and remote tag (and any partial release), then retry. Deleting only the remote tag is not enough because `publish` checks the local tag first:
   ```bash
-  TAG=OMORI-PMJS-2026.10.25
+  TAG=v0.7.2
   gh release delete "$TAG" -R AbdullahTrees/omori-pmjs --yes --cleanup-tag || true
   git tag -d "$TAG" || true
   git push origin ":refs/tags/$TAG" || true
