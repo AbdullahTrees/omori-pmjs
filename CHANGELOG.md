@@ -6,6 +6,7 @@
 - Fixed the 2026.10.25 launcher's Windows CRLF line endings, which prevented it from starting and writing a log
 - The launcher logs before PortMaster, finds the port folder without it, restores executable bits, and keeps `log.prev.txt`
 - Added a `gamedata/omori-key.txt` template and documented per-firmware install paths and log locations
+- The converter finds the key and `appinfo.vdf` in `gamedata/` for both flat and nested Steam installs
 - Verified the Steam converter against a real 1.0.8 install: 5,093 files expected, 0 missing, 0 changed
 - Made menu prewarm opt-in to avoid a 20.6-second first-map stall
 

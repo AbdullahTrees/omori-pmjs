@@ -218,6 +218,7 @@ def stage_metadata(port, metadata, require_screenshot):
     gamedata.mkdir()
     write_text(gamedata / 'README.txt',
                'Copy your OMORI installation here, so that gamedata/www/index.html exists.\n'
+               'Copying the OMORI folder itself (gamedata/OMORI/www) also works.\n'
                'The launcher converts it to ../www/ on first launch.\n'
                '\n'
                'For the Steam release, put your 32-character key in gamedata/omori-key.txt,\n'

@@ -11,7 +11,7 @@
 ## Install
 
 1. Copy `OMORI (PMJS).sh` and the `omori-pmjs/` folder to the Ports locations for your firmware: on muOS the `.sh` goes in `/mnt/mmc/ROMS/Ports/` and the folder in `/mnt/mmc/ports/`; on ArkOS/dArkOS both go in `/roms/ports/`; on Knulli/Batocera both go in `/userdata/roms/ports/`. PortMaster's autoinstall places both correctly.
-2. Copy your Steam OMORI install into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists.
+2. Copy the contents of your Steam OMORI install (the folder containing `www/`) into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists. Copying the `OMORI` folder itself also works (`gamedata/OMORI/www/index.html`); keep the key or `appinfo.vdf` in `gamedata/` either way.
 3. Put the game's 32-character decryption key in `omori-pmjs/gamedata/omori-key.txt` (replace the template's whole contents), or copy Steam's `appcache/appinfo.vdf` into `gamedata/`.
 4. Launch OMORI (PMJS) from the Ports menu.
 

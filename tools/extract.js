@@ -115,6 +115,23 @@ function topLevelNames(dir) {
 
 function findKey(source, outDir, files, validate) {
     var parent = path.dirname(source);
+    // Players copy either the contents of the Steam folder (gamedata/www) or
+    // the folder itself (gamedata/OMORI/www). In the second layout the key and
+    // appinfo live one level above the game folder, in gamedata/. Search both.
+    var grandparent = path.dirname(parent);
+    var keyDirs = [source, parent, grandparent, path.dirname(outDir)];
+    var scriptDirs = [source, parent, grandparent];
+    function uniqueDirs(dirs) {
+        var dirSeen = {};
+        return dirs.filter(function (dir) {
+            var id = path.resolve(dir);
+            if (dirSeen[id]) return false;
+            dirSeen[id] = true;
+            return true;
+        });
+    }
+    keyDirs = uniqueDirs(keyDirs);
+    scriptDirs = uniqueDirs(scriptDirs);
     var candidates = [];
     var seen = {};
     function add(value, label) {
@@ -135,7 +152,7 @@ function findKey(source, outDir, files, validate) {
     add(process.env.OMORI_KEY, 'OMORI_KEY');
     add(process.env.OMORI_AES_KEY, 'OMORI_AES_KEY');
 
-    [source, parent].forEach(function (dir) {
+    scriptDirs.forEach(function (dir) {
         topLevelNames(dir).forEach(function (name) {
             if (!/\.(bat|cmd|sh)$/i.test(name)) return;
             try {
@@ -146,13 +163,13 @@ function findKey(source, outDir, files, validate) {
         });
     });
 
-    var appinfo = [
-        path.join(source, 'appinfo.vdf'),
-        path.join(parent, 'appinfo.vdf'),
-        path.join(outDir, '..', 'appinfo.vdf'),
+    var appinfo = keyDirs.map(function (dir) {
+        return path.join(dir, 'appinfo.vdf');
+    });
+    appinfo = appinfo.concat([
         path.join(process.env.HOME || '', '.steam/steam/appcache/appinfo.vdf'),
         path.join(process.env.HOME || '', '.local/share/Steam/appcache/appinfo.vdf')
-    ];
+    ]);
     if (process.platform === 'win32') {
         appinfo.push(path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
             'Steam/appcache/appinfo.vdf'));
@@ -164,7 +181,7 @@ function findKey(source, outDir, files, validate) {
     });
 
     ['omori-key.txt', 'key.txt'].forEach(function (name) {
-        [source, parent, path.dirname(outDir)].forEach(function (dir) {
+        keyDirs.forEach(function (dir) {
             try {
                 add(fs.readFileSync(path.join(dir, name), 'latin1'), path.join(dir, name));
             } catch (e) {

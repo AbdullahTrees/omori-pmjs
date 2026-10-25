@@ -36,7 +36,7 @@ Download the ZIP from [Releases](https://github.com/AbdullahTrees/omori-pmjs/rel
 
    PortMaster can also install the ZIP from its autoinstall folder; it places both parts correctly.
 
-2. Copy your Steam OMORI install into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists.
+2. Copy the contents of your Steam OMORI install (the folder containing `www/`) into `omori-pmjs/gamedata/`, so that `omori-pmjs/gamedata/www/index.html` exists. Copying the `OMORI` folder itself also works (`gamedata/OMORI/www/index.html`); put the key or `appinfo.vdf` in `gamedata/` either way.
 3. Put the game's 32-character decryption key in `omori-pmjs/gamedata/omori-key.txt` (see below). A template file is included: replace its whole contents with your key. Alternatively, copy Steam's `appcache/appinfo.vdf` into `gamedata/`.
 4. Launch OMORI (PMJS) from the Ports menu.
 
