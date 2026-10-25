@@ -78,7 +78,11 @@ def copy_file(source, target):
 
 def write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding='utf-8')
+    # Builds also run on Windows, where the default text mode turns every \n
+    # into \r\n. A CRLF launcher cannot start on the handheld (the shebang and
+    # every variable get a trailing \r), and it exits before writing a log.
+    with path.open('w', encoding='utf-8', newline='\n') as stream:
+        stream.write(text)
 
 
 def payload_inventory(root):
@@ -176,7 +180,7 @@ def stage_licenses(port, notices, runtime, extra, with_libatomic):
         if missing:
             raise SystemExit('license source missing: ' + ', '.join(missing))
         target = licenses / destination
-        with target.open('w', encoding='utf-8', errors='replace') as stream:
+        with target.open('w', encoding='utf-8', errors='replace', newline='\n') as stream:
             stream.write(header + '\n\n')
             for index, source in enumerate(sources):
                 if index:
@@ -214,7 +218,19 @@ def stage_metadata(port, metadata, require_screenshot):
     gamedata.mkdir()
     write_text(gamedata / 'README.txt',
                'Copy your OMORI installation here, so that gamedata/www/index.html exists.\n'
-               'The launcher converts it to ../www/ on first launch. See ../README.md.\n')
+               'The launcher converts it to ../www/ on first launch.\n'
+               '\n'
+               'For the Steam release, put your 32-character key in gamedata/omori-key.txt,\n'
+               'or copy Steam\'s appcache/appinfo.vdf into this folder. See ../README.md.\n')
+    # Sits exactly where the converter looks. The comments are inert; the player
+    # replaces the whole file with the key from their own Steam install.
+    write_text(gamedata / 'omori-key.txt',
+               '# OMORI Steam decryption key\n'
+               '#\n'
+               '# Replace this entire file with your own 32-character key (hexadecimal).\n'
+               '# The key is in Steam\'s appcache/appinfo.vdf after OMORI.exe, or copy\n'
+               '# that appinfo.vdf into this gamedata/ folder instead of using this file.\n'
+               '# See ../README.md. Do not share your key or this file.\n')
 
 
 def normalize_modes(stage, port):
@@ -242,6 +258,13 @@ def validate_stage(stage, port):
     for path in stage.rglob('*'):
         if path.is_symlink():
             raise SystemExit('staged package contains a symlink: ' + str(path))
+    # The builder can run on Windows. Catch a text-mode write before the ZIP
+    # ships: a CRLF shell script fails on the handheld with no output and no log.
+    for path in stage.rglob('*.sh'):
+        if b'\r\n' in path.read_bytes():
+            raise SystemExit('CRLF line endings in %s' % path.relative_to(stage))
+    if b'\r\n' in (port / 'runtime/bin/pmjs').read_bytes():
+        raise SystemExit('CRLF line endings in runtime/bin/pmjs')
 
 
 def main():
@@ -350,9 +373,9 @@ def main():
         for name in ('extract.js', 'steam-to-reference.patch', 'reference.sha256'):
             copy_file(repo / 'tools' / name, tools / name)
 
-        (port / 'config.json').write_text(
-            '{\n  "assetPreparation": {\n    "workspaceBytes": 67108864\n  }\n}\n', encoding='utf-8')
-        (port / 'VERSION').write_text(version + '\n', encoding='utf-8')
+        write_text(port / 'config.json',
+                   '{\n  "assetPreparation": {\n    "workspaceBytes": 67108864\n  }\n}\n')
+        write_text(port / 'VERSION', version + '\n')
 
         stage_metadata(port, metadata, args.require_screenshot)
         license_count = stage_licenses(port, port / 'runtime/share/pmjs/notices', port / 'runtime',
@@ -363,7 +386,7 @@ def main():
         launcher = (launcher_source
                     .replace('@PERF_EXTRA_DEFAULT@', args.perf_extra)
                     .replace('@RELEASE_VERSION@', version))
-        (stage / 'OMORI (PMJS).sh').write_text(launcher, encoding='utf-8')
+        write_text(stage / 'OMORI (PMJS).sh', launcher)
         os.chmod(stage / 'OMORI (PMJS).sh', 0o755)
 
         manifest = {
@@ -376,7 +399,7 @@ def main():
             'portSource': {'source': omori, 'repo': args.port_source_label or repo.name},
             'payload': payload_inventory(port),
         }
-        (port / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+        write_text(port / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
 
         normalize_modes(stage, port)
         validate_stage(stage, port)
@@ -387,12 +410,11 @@ def main():
         zip_tree(stage, versioned, epoch)
         shutil.copyfile(versioned, stable)
         digest = sha256(versioned)
-        (out / ('OMORI-PMJS-%s.zip.sha256' % version)).write_text(
-            '%s  %s\n' % (digest, versioned.name), encoding='utf-8')
-        (out / 'OMORI-PMJS.zip.sha256').write_text(
-            '%s  %s\n' % (digest, stable.name), encoding='utf-8')
-        (out / ('OMORI-PMJS-%s.json' % version)).write_text(
-            json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+        write_text(out / ('OMORI-PMJS-%s.zip.sha256' % version),
+                   '%s  %s\n' % (digest, versioned.name))
+        write_text(out / 'OMORI-PMJS.zip.sha256',
+                   '%s  %s\n' % (digest, stable.name))
+        write_text(out / ('OMORI-PMJS-%s.json' % version), json.dumps(manifest, indent=2) + '\n')
         if not args.keep:
             for old in out.glob('OMORI-PMJS-*.zip'):
                 if old != versioned:

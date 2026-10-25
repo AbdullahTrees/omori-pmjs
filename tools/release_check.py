@@ -17,7 +17,7 @@ LAUNCHER = 'OMORI (PMJS).sh'
 PORT = 'omori-pmjs/'
 REQUIRED = [
     'port.json', 'gameinfo.xml', 'README.md', 'screenshot.png',
-    'licenses/LICENSES.md', 'gamedata/README.txt',
+    'licenses/LICENSES.md', 'gamedata/README.txt', 'gamedata/omori-key.txt',
     'runtime/bin/node', 'runtime/bin/pmjs', 'runtime/lib/libatomic.so.1',
     'patches/character-frames.js', 'tools/extract.js', 'manifest.json',
 ]
@@ -63,6 +63,17 @@ def main():
         for name in REQUIRED:
             if PORT + name not in names:
                 return fail('missing ' + PORT + name)
+        # A Windows build once shipped a CRLF launcher; it cannot start on the
+        # handheld and exits before writing a log, so reject it before upload.
+        for name in (LAUNCHER, PORT + 'runtime/bin/pmjs'):
+            if b'\r\n' in bundle.read(name):
+                return fail(name + ' has CRLF line endings')
+        launcher = bundle.read(LAUNCHER).decode('utf-8', 'replace')
+        if '@RELEASE_VERSION@' in launcher or '@PERF_EXTRA_DEFAULT@' in launcher:
+            return fail('launcher still contains build placeholders')
+        key_template = bundle.read(PORT + 'gamedata/omori-key.txt').decode('utf-8', 'replace')
+        if re.search(r'(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])', key_template):
+            return fail('gamedata/omori-key.txt contains a 32-character key')
         try:
             manifest = json.loads(bundle.read(PORT + 'manifest.json'))
         except (KeyError, ValueError) as error:
