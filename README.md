@@ -6,6 +6,10 @@ An unofficial port of OMORI (RPG Maker MV) to ARM64 PortMaster handhelds, runnin
 
 This repository contains the port's launcher, game-side patches, Steam-to-plain converter, PortMaster metadata and release builder. The PMJS runtime itself is built from the PMJS source.
 
+Development happens in [OmoriSource](https://github.com/AbdullahTrees/OmoriSource); verified
+release inputs are copied here. In the shared workspace this repository lives at
+`portmaster-builder/omori-pmjs`, separate from `REVERSE/OmoriSource` and its PMJS submodule.
+
 ## Download
 
 Download the latest release:

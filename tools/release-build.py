@@ -14,7 +14,7 @@ No game files are included; the launcher converts a Steam install in gamedata/
 on first launch (or uses a pre-converted www/).
 
 Run in WSL (the runtime is an ARM64 Linux tree with exec bits):
-  python3 /mnt/c/.../omori-handover/tools/release-build.py \
+  python3 tools/release-build.py \
       [--runtime ~/omori-test/pmjs-int3/dist/pmjs-arm64] \
       [--runtime-src ~/omori-test/pmjs-int3] [--out .../share/out]
 """
