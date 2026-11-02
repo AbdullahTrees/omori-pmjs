@@ -375,7 +375,8 @@ def main():
             copy_file(repo / 'tools' / name, tools / name)
 
         write_text(port / 'config.json',
-                   '{\n  "assetPreparation": {\n    "workspaceBytes": 67108864\n  }\n}\n')
+                   '{\n  "assetPreparation": {\n    "workspaceBytes": 67108864\n  },\n'
+                   '  "fonts": {\n    "GameFont": "fonts/OMORI_GAME2.ttf"\n  }\n}\n')
         write_text(port / 'VERSION', version + '\n')
 
         stage_metadata(port, metadata, args.require_screenshot)
