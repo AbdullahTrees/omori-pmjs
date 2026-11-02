@@ -191,7 +191,10 @@ fi
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=480}"
 
 if [ -n "${GPTOKEYB2:-}" ]; then
-  "$GPTOKEYB2" "$BINARY" > /dev/null 2>&1 &
+  # GPTOKEYB2 is a whole command line (sudo prefix, env LD_PRELOAD=..., the binary, kill flag):
+  # it must stay unquoted, or the shell looks for one program with that name and Start+Select
+  # never quits. Errors go to the launcher log.
+  $GPTOKEYB2 "$BINARY" > /dev/null &
 else
   echo "[launcher] GPTOKEYB2 unavailable; controls depend on PortMaster"
 fi
