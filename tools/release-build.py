@@ -376,7 +376,12 @@ def main():
 
         write_text(port / 'config.json',
                    '{\n  "assetPreparation": {\n    "workspaceBytes": 67108864\n  },\n'
-                   '  "fonts": {\n    "GameFont": "fonts/OMORI_GAME2.ttf"\n  }\n}\n')
+                   '  "fonts": {\n    "GameFont": "fonts/OMORI_GAME2.ttf"\n  },\n'
+                   '  "disableOptimizations": [\n'
+                   '    "scene.constant-black-group",\n'
+                   '    "scene.plain-sprite-segment",\n'
+                   '    "tilemap.yed-indexed-paint-loops"\n'
+                   '  ]\n}\n')
         write_text(port / 'VERSION', version + '\n')
 
         stage_metadata(port, metadata, args.require_screenshot)
