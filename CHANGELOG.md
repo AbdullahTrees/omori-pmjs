@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.11.04
+
+- Runtime rebuilt from `integration` (`d4b7b5c`) + `pr/filter-target-hysteresis` (`f29a883`): identity-filter elision restores battle fps, filter-target hysteresis removes target churn (~1 ms/frame)
+- Release `config.json` disables `scene.constant-black-group`, `scene.plain-sprite-segment` and `tilemap.yed-indexed-paint-loops` (surveyed neutral/slower on OMORI; yed-paint screenshots identical)
+- Loading screen uses the OMORI game font
+- Start+Select quits reliably (GPTOKEYB2 unquoted)
+- Verified the Steam converter on this ZIP: key from `appinfo.vdf`, 5,093 expected / 0 missing / 0 changed
+
 ## v0.7.2 - 2026-10-26
 
 - First semantic-versioned release
