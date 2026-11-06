@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026.11.06
+
+- Runtime rebuilt from `integration` (`f1a2c94`) on upstream `398ed49`: includes the merged upstream fixes #8 and #10-#13 plus identity-filter elision, filter-target hysteresis, frame statistics and character-presentation deferral
+- Dialog/textbox windows with stacked, colour and icon effects rise from 16-21 fps to about 52 fps (upstream canvas text-measurement cache); ordinary text windows gain 1-3 fps
+- Battles, menus and measured maps unchanged within noise; same three surveyed `config.json` disables
+- Known issue: warm startup about 84 s versus 72 s, because upstream's prepared-image catalog is not written when a game ships undecodable image placeholders and the images are revalidated every boot
+
 ## 2026.11.04
 
 - Runtime rebuilt from `integration` (`d4b7b5c`) + `pr/filter-target-hysteresis` (`f29a883`): identity-filter elision restores battle fps, filter-target hysteresis removes target churn (~1 ms/frame)
