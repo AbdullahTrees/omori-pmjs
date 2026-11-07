@@ -197,15 +197,34 @@ export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=480}"
 export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-131072}"
 export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:-131072}"
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
-# Per-second memory log (one file per session in logs/, newest 5 kept; synced every 5 s so it
-# survives a power-off after a freeze) and a memory cull above PMJS_MEMORY_CULL_MB of RSS:
-# cached images nothing uses are dropped, V8 collects, the allocator is trimmed
-# (PMJS runner/memory-guard.cjs). PMJS_MEMORY_CULL_MB=0 keeps the log and disables culls.
-mkdir -p "$GAMEDIR/logs"
-ls -1t "$GAMEDIR"/logs/memory-*.log 2>/dev/null | tail -n +5 | while read -r old; do rm -f "$old"; done
-export PMJS_MEMORY_LOG="${PMJS_MEMORY_LOG:-$GAMEDIR/logs/memory-$(date +%Y%m%d-%H%M%S).log}"
-export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-500}"
-echo "[launcher] memory log=$PMJS_MEMORY_LOG cull_mb=$PMJS_MEMORY_CULL_MB"
+# Memory. Always: the runtime's memory guard as a safety net (culls only if available memory
+# drops below PMJS_MEMORY_CRITICAL_MB). Low-memory mode, for 1 GB devices whose OS leaves little
+# free (e.g. dArkOS with EmulationStation resident): caps RPG Maker's image cache, culls earlier
+# (unused cached images dropped, a full collection, allocator trim) and keeps a per-second memory
+# log in logs/. It can cause brief reload stutters, so it stays off on devices with room.
+#   force on:  create a file named low-memory-mode next to this port's files
+#   force off: create a file named normal-memory-mode
+#   otherwise: on when less than PMJS_LOW_MEMORY_BELOW_MB (700) MB is available at launch
+AVAILABLE_MB=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null)
+LOW_MEMORY=0 LOW_MEMORY_REASON="available ${AVAILABLE_MB:-?} MB at launch"
+if [ -n "${PMJS_LOW_MEMORY:-}" ]; then LOW_MEMORY=$PMJS_LOW_MEMORY; LOW_MEMORY_REASON="PMJS_LOW_MEMORY=$PMJS_LOW_MEMORY"
+elif [ -f "$GAMEDIR/low-memory-mode" ]; then LOW_MEMORY=1; LOW_MEMORY_REASON="low-memory-mode file"
+elif [ -f "$GAMEDIR/normal-memory-mode" ]; then LOW_MEMORY=0; LOW_MEMORY_REASON="normal-memory-mode file"
+elif [ -n "$AVAILABLE_MB" ] && [ "$AVAILABLE_MB" -lt "${PMJS_LOW_MEMORY_BELOW_MB:-700}" ]; then LOW_MEMORY=1
+fi
+export PMJS_MEMORY_GUARD=1
+if [ "$LOW_MEMORY" = 1 ]; then
+  mkdir -p "$GAMEDIR/logs"
+  ls -1t "$GAMEDIR"/logs/memory-*.log 2>/dev/null | tail -n +5 | while read -r old; do rm -f "$old"; done
+  export PMJS_MEMORY_LOG="${PMJS_MEMORY_LOG:-$GAMEDIR/logs/memory-$(date +%Y%m%d-%H%M%S).log}"
+  export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-450}"
+  export PMJS_MEMORY_CRITICAL_MB="${PMJS_MEMORY_CRITICAL_MB:-200}"
+  export PMJS_IMAGE_CACHE_MAX_PIXELS="${PMJS_IMAGE_CACHE_MAX_PIXELS:-10000000}"
+else
+  export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-0}"
+  export PMJS_MEMORY_CRITICAL_MB="${PMJS_MEMORY_CRITICAL_MB:-120}"
+fi
+echo "[launcher] memory mode=$([ "$LOW_MEMORY" = 1 ] && echo low || echo normal) ($LOW_MEMORY_REASON) cull_mb=$PMJS_MEMORY_CULL_MB critical_mb=$PMJS_MEMORY_CRITICAL_MB log=${PMJS_MEMORY_LOG:-none}"
 
 if [ -n "${GPTOKEYB2:-}" ]; then
   # GPTOKEYB2 is a whole command line (sudo prefix, env LD_PRELOAD=..., the binary, kill flag):
