@@ -197,6 +197,15 @@ export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=480}"
 export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-131072}"
 export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:-131072}"
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
+# Per-second memory log (one file per session in logs/, newest 5 kept; synced every 5 s so it
+# survives a power-off after a freeze) and a memory cull above PMJS_MEMORY_CULL_MB of RSS:
+# cached images nothing uses are dropped, V8 collects, the allocator is trimmed
+# (PMJS runner/memory-guard.cjs). PMJS_MEMORY_CULL_MB=0 keeps the log and disables culls.
+mkdir -p "$GAMEDIR/logs"
+ls -1t "$GAMEDIR"/logs/memory-*.log 2>/dev/null | tail -n +5 | while read -r old; do rm -f "$old"; done
+export PMJS_MEMORY_LOG="${PMJS_MEMORY_LOG:-$GAMEDIR/logs/memory-$(date +%Y%m%d-%H%M%S).log}"
+export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-500}"
+echo "[launcher] memory log=$PMJS_MEMORY_LOG cull_mb=$PMJS_MEMORY_CULL_MB"
 
 if [ -n "${GPTOKEYB2:-}" ]; then
   # GPTOKEYB2 is a whole command line (sudo prefix, env LD_PRELOAD=..., the binary, kill flag):
