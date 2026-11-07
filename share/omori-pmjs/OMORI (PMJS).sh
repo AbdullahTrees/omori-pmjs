@@ -189,6 +189,14 @@ fi
 
 # 1 GB devices: fail inside Node instead of a device-wide OOM.
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=480}"
+# glibc allocator: a fixed mmap threshold returns large freed buffers (decoded images) to the
+# OS at once instead of letting the dynamic threshold push them into arenas that fragment and
+# never shrink; fewer arenas and a 128 KB trim threshold keep free memory from piling up.
+# Measured 2026-11-07 on the RG40XX-H: ~120 MB less RSS on maps 87/88/111, same fps
+# (evidence/malloc-ab-20261107). Overridable for A/B runs.
+export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-131072}"
+export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:-131072}"
+export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
 
 if [ -n "${GPTOKEYB2:-}" ]; then
   # GPTOKEYB2 is a whole command line (sudo prefix, env LD_PRELOAD=..., the binary, kill flag):
