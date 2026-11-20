@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.0
+
+- Maps faster: off-screen weather culling and new logic caches (map 92 41 -> 60 fps, Rain Town 31 -> 45, walking 39 -> 51)
+- Real-time logic pacing: a steady 60 steps per second (`OMORI_PERF_DISABLE=mainLoopPacing` restores stock timing)
+- Warm start 55-84 s -> about 9 s (catalog fixes, loading screen); template-map preload reads each map once
+- No background blur on map transfers (DARK ROAD memory-door freeze gone); first menu open 2.4 s -> 0.3 s
+- Credits video 15.6 -> 33 fps; Basil's greyscale phase 29.5 -> 40 fps; Space Invaders 18.5 -> 59.5 fps
+- Low-memory mode and memory safety net for 1 GB devices
+- Runtime: PMJS `integration` `2071ae3` (upstream `515ebe6`) + video fixes, local branch `release/v0.8.0` `5e776db`
+- The port's own code is MIT-licensed
+
 ## 2026.11.06
 
 - Runtime rebuilt from `integration` (`f1a2c94`) on upstream `398ed49`: includes the merged upstream fixes #8 and #10-#13 plus identity-filter elision, filter-target hysteresis, frame statistics and character-presentation deferral

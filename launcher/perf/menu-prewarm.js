@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Menu prewarm for OMORI on slow hardware. Game files stay byte-identical.
 //
 // Experimental: opt in with OMORI_PERF_MENU_PREWARM=1. Loading this file alone is inert.

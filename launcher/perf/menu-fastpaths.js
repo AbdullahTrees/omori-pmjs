@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Menu window refresh guard for OMORI on slow hardware. Game files stay byte-identical.
 //
 // Loaded like the other launcher/perf modules (PMJS: one --patch, installed on afterPlugins;

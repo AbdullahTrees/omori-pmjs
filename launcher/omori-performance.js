@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Runtime performance patch for slow hardware. Game files stay byte-identical.
 //
 // PMJS loads it with `--patch launcher/omori-performance.js`; NW.js loads it through
@@ -33,9 +35,19 @@
 
   // Counters for measuring the patch: full updates and the two kinds of skipped update.
   // `enabled` can be cleared at runtime to compare against vanilla behaviour in one session.
-  var stats = root.OmoriPerformance = { installed: false, enabled: true, full: 0, offscreen: 0, reflections: 0 };
-  // Off-screen margin in pixels, on top of twice the sprite's frame size.
-  var MARGIN = 96;
+  var stats = root.OmoriPerformance = { installed: false, enabled: true, full: 0, offscreen: 0, empty: 0, reflections: 0 };
+  // `empty` (OMORI_PERF_DISABLE=emptyEventSkip turns it off): character sprites that draw nothing
+  // (transparent, or no graphic at all), skipped wherever they are. See drawsNothing().
+  stats.emptyEnabled = String(env('OMORI_PERF_DISABLE') || '').split(',').map(function (s) { return s.trim(); })
+    .indexOf('emptyEventSkip') < 0;
+  // Per-frame counts of why a sprite update took the full path (gate-fail reasons) — the
+  // offscreen counter alone cannot say which gate keeps a sprite on the expensive path.
+  stats.gate = { noPlain: 0, fresh: 0, kind: 0, busy: 0, label: 0, onscreen: 0 };
+  // No apron past the sprite's true extent: a sprite that crosses onto the screen takes the full
+  // update path the same frame (sprite updates run before rendering), so its frame and bitmap are
+  // ready exactly when its pixels can first appear. Bitmaps need no load lead —
+  // Aetherflow_PreloadEverything keeps the character sheets resident — and skipEvent keeps the
+  // position live, so no ghost can linger either.
   // True while Spriteset_Map.update runs; plainView when the map is drawn unscaled and unshaken.
   var inSpriteset = false, plainView = false;
 
@@ -76,11 +88,50 @@
     if (typeof sprite.updateVisibility === 'function') sprite.updateVisibility();
   }
 
+  // True when the sprite can draw nothing anywhere, so it can take the same skip path as an
+  // off-screen sprite (position and visibility kept live) wherever it is and in any view:
+  //   * its character is transparent (updateVisibility, which the skip path runs, keeps the
+  //     sprite hidden; the step the character turns visible fails this test and the full update
+  //     runs before the frame is drawn), or
+  //   * its character has no graphic and no tile, and the sprite's last full update recorded
+  //     that (bitmap empty, frame 0x0): an invisible trigger event (80 of 101 event sprites at the
+  //     save-4 spot on map 92), an unused follower slot, a parked vehicle; a page change or
+  //     movement graphic that gives it a graphic fails the test on that step;
+  // and none of the extras the update chain can show for it is present: OMORI BASE's input icon
+  // and shadow (character._inputIcon / _shadow, or the sprites already created), Liquid_EventIcons'
+  // icon sprite, or any child. Animations, balloons, event icons and mini labels are covered by
+  // busy() and labelAllowsSkip(). Such sprites take skipNothing(). Followers, vehicles and the player qualify through the same
+  // tests: their image changes go through setImage (Character_Movement_Graphics, Extra_Followers),
+  // which characterName() reflects.
+  function drawsNothing(sprite, character) {
+    if (character._inputIcon || character._shadow || sprite._inputIconSprite || sprite._shadowSprite ||
+        sprite._eventconSprite || (sprite.children && sprite.children.length)) return false;
+    if (character.isTransparent()) return true;
+    return sprite._characterName === '' && sprite._tileId === 0 &&
+      character.characterName() === '' && character.tileId() === 0;
+  }
+
+  // Skip for a sprite that draws nothing (drawsNothing): the label countdown and updateAnimation
+  // run as for an off-screen sprite, and the sprite is hidden instead of positioned. Hidden, PIXI
+  // and PMJS leave it out of the transform pass and the scene walk; it has no pixels and no
+  // children, so neither its position nor its draw order can show. The step its character gets a
+  // graphic or turns visible, drawsNothing fails and the full update (Sprite_Base.update ->
+  // updateVisibility, updatePosition) restores both before the frame is drawn. No plugin reads a
+  // character sprite's visible/x/y (checked: FilterController, YEP_CoreEngine hide/showCharacters,
+  // YEP_EventMiniLabel, YEP_EventMorpher/Spawner, the launcher perf modules).
+  function skipNothing(sprite) {
+    skip(sprite);
+    if (sprite.visible) sprite.visible = false;
+  }
+
+  // True when no pixel of the sprite can be on screen. The sprite's pixels span
+  // [x-hw, x+hw] x [y-h, y] (Sprite_Character anchors at 0.5, 1).
   function offscreen(sprite, character) {
     var frame = sprite._frame, scale = Math.max(Math.abs(sprite.scale.x), Math.abs(sprite.scale.y), 1);
-    var m = MARGIN + 2 * Math.max(frame.width, frame.height) * scale;
+    var hw = frame.width * scale * 0.5, h = frame.height * scale;
     var x = character.screenX(), y = character.screenY();
-    return x < -m || y < -m || x > Graphics.width + m || y > Graphics.height + m;
+    return x + hw < 0 || x - hw > Graphics.width ||
+           y < 0 || y - h > Graphics.height;
   }
 
   var installTimer = null, installWaits = 0;
@@ -121,11 +172,25 @@
     var characterUpdate = Sprite_Character.prototype.update;
     Sprite_Character.prototype.update = function () {
       var character = this._character;
+      if (stats.enabled && inSpriteset && this._omoriUpdated && character && typeof character.isTransparent === 'function' &&
+          stats.emptyEnabled && drawsNothing(this, character) && !busy(this, character) && labelAllowsSkip(this)) {
+        skipNothing(this);
+        stats.empty++;
+        return;
+      }
       if (stats.enabled && inSpriteset && plainView && this._omoriUpdated && character instanceof Game_Event &&
           !busy(this, character) && labelAllowsSkip(this) && offscreen(this, character)) {
         skipEvent(this);
         stats.offscreen++;
         return;
+      }
+      if (stats.enabled && inSpriteset) {
+        if (!plainView) stats.gate.noPlain++;
+        else if (!this._omoriUpdated) stats.gate.fresh++;
+        else if (!(character instanceof Game_Event)) stats.gate.kind++;
+        else if (busy(this, character)) stats.gate.busy++;
+        else if (!labelAllowsSkip(this)) stats.gate.label++;
+        else stats.gate.onscreen++;                 // passed every gate but on screen
       }
       this._omoriUpdated = true;
       stats.full++;

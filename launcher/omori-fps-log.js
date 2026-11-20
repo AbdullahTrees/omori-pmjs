@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Frame-rate log for playtesting ports. Game files stay byte-identical.
 //
 // Writes <OMORI_FPS_DIR>/fps-<session start>.log, one JSON line per window: a window closes after

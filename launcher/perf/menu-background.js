@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Menu background blur for OMORI on slow hardware. Game files stay byte-identical.
 //
 // Loaded like the other launcher/perf modules (PMJS: one --patch, installed on afterPlugins;
@@ -30,7 +32,7 @@
   }
 
   var stats = { menuBackground: { installed: false, enabled: true, disabled: false,
-    blurred: 0, filtersRemoved: 0, kept: 0, blurMs: 0, blurMaxMs: 0, errors: [], refused: null } };
+    blurred: 0, filtersRemoved: 0, kept: 0, nativeRefused: 0, blurMs: 0, blurMaxMs: 0, errors: [], refused: null } };
   root.OmoriPerf = root.OmoriPerf || {};
   root.OmoriPerf.menuBackground = stats.menuBackground;
 
@@ -71,7 +73,21 @@
     }
     var started = performance.now();
     try {
-      bitmap.blur();
+      // On PMJS only the native blur is worth it. PMJS refuses it for some snapshots
+      // (additive-blend pixels over transparency, "over-alpha") and Bitmap.blur() then runs MV's
+      // stock Canvas blur, ~2.1 s on the RG40XX-H (DARK ROAD PATH, playthrough 2026-11-13). In
+      // that case keep GTP's GPU BlurFilter, the authored path, instead.
+      var canvasApi = root.PMJS && root.PMJS.web && root.PMJS.web.canvas;
+      if (canvasApi && typeof canvasApi.blurMv === 'function') {
+        if (!bitmap._canvas || bitmap._canvas.width !== bitmap.width || bitmap._canvas.height !== bitmap.height ||
+            !canvasApi.blurMv(bitmap._context)) {
+          item.nativeRefused++;
+          return false;
+        }
+        bitmap._setDirty();
+      } else {
+        bitmap.blur();
+      }
     } catch (error) {
       // A partially blurred bitmap with the filter also removed would be worse than the
       // authored filter, so a failed blur keeps the sprite as it was.

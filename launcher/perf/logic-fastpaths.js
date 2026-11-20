@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Runtime performance patch: event-logic fast paths (task I2). Game files stay byte-identical.
 //
 // PMJS loads it with `--patch launcher/perf/logic-fastpaths.js`; NW.js would load it through

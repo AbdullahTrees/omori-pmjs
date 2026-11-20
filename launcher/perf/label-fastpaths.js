@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Mini-label construction fast path for OMORI. Game files stay byte-identical.
 //
 // Runtime-patch module; install shape matches launcher/omori-performance.js (PMJS

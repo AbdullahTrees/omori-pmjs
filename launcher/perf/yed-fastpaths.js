@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // YED_Tiled per-frame fast paths for classic (non-Tiled) maps. Game files stay byte-identical.
 //
 // Runtime-patch module; install shape matches launcher/omori-performance.js (PMJS
@@ -19,6 +21,22 @@
 //   variable) and then loops `this._tilemap._layers`. With no layers the loop body never runs,
 //   so the call has no effect; the fast path returns before the getter. A map with layers
 //   delegates unchanged.
+//
+//   TiledTilemap._updateLayerPositions (YED_Tiled.js:656, `yedPriorityPositions`; off with
+//   OMORI_PERF_DISABLE=yedPriorityPositions) runs every frame from the tilemap's transform
+//   preparation (PMJS render-prepare / ShaderTilemap.updateTransform). Besides the few tile layers
+//   it repositions all 256 priority-tile sprites, through PIXI's width/height getters and x/y
+//   setters, although most are hidden (unused slots): 0.97 ms/frame inclusive at the save-4 spot
+//   on map 92. The fast path runs the same arithmetic in the same order for the layers and for
+//   every priority sprite that is visible, and leaves hidden ones (visible === false) where they
+//   are. A hidden sprite is not drawn; the call order is positions -> repaint -> sort, and the
+//   repaint positions every tile it shows itself (_paintPriorityTile), so a tile shown later is
+//   positioned before it can be drawn (a tile shown with show() becomes visible on its next
+//   update, and is repositioned at the next transform pass before that frame's draw). The sort
+//   comparator (z, y, priority, spriteId) is a total order on sprites (unique spriteId) and the
+//   sort is stable for the id-less layers, so a hidden sprite's stale y cannot change the order
+//   of anything drawn. TiledTilemap is module-private: the prototype is patched from the first
+//   instance (Spriteset_Map.createTilemap), only if its method matches the pin.
 //
 // Pins are SHA-256 of Function.prototype.toString (CRLF normalised to LF).
 (function () {
@@ -42,8 +60,15 @@
 
   var PINS = {
     updateReflection: ['58b6d640f457bba7552a7af7371bddd327142b4089078210f62bb224cb9f2907'],
-    updateHideOnLevel: ['51bd8a67e29f953c5ca2607e8f54537e8b050256e5dac2fa1e467c0bed0ce823']
+    updateHideOnLevel: ['51bd8a67e29f953c5ca2607e8f54537e8b050256e5dac2fa1e467c0bed0ce823'],
+    updateLayerPositions: ['1a2e2865cc172588e7e32bfbdaee4935dd0049d51c659435981849e370cd43ca']
   };
+  var positions = api.yedPriorityPositions = api.yedPriorityPositions || {};
+  positions.installed = !!positions.installed;
+  positions.refused = null;
+  positions.enabled = positions.enabled !== false;
+  positions.updated = 0;
+  positions.skipped = 0;
 
   function digest(fn) {
     if (typeof fn !== 'function') return '';
@@ -122,6 +147,67 @@
 
     stats.installed = true;
     console.log('[omori-perf] yedFastPaths installed');
+    installPriorityPositions(disabled);
+  }
+
+  function installPriorityPositions(disabled) {
+    if (disabled.some(function (name) { return name.trim() === 'yedPriorityPositions'; })) {
+      positions.refused = 'disabled by OMORI_PERF_DISABLE';
+      return;
+    }
+    var createTilemap = root.Spriteset_Map.prototype.createTilemap;
+    if (typeof createTilemap !== 'function') { positions.refused = 'Spriteset_Map.createTilemap missing'; return; }
+    var patched = false;
+    root.Spriteset_Map.prototype.createTilemap = function () {
+      var result = createTilemap.apply(this, arguments);
+      if (!patched && this._tilemap) {
+        patched = true;
+        var proto = Object.getPrototypeOf(this._tilemap);
+        var original = proto && Object.prototype.hasOwnProperty.call(proto, '_updateLayerPositions') &&
+          proto._updateLayerPositions;
+        if (!original || !pinned('updateLayerPositions', original)) {
+          positions.refused = 'TiledTilemap._updateLayerPositions';
+          console.log('[omori-perf] yedPriorityPositions refused: ' + positions.refused);
+          return result;
+        }
+        proto._updateLayerPositions = function (startX, startY) {
+          if (!positions.enabled || api.enabled === false) return original.call(this, startX, startY);
+          var ox = 0;
+          var oy = 0;
+          if (this.roundPixels) {
+            ox = Math.floor(this.origin.x);
+            oy = Math.floor(this.origin.y);
+          } else {
+            ox = this.origin.x;
+            oy = this.origin.y;
+          }
+          var layers = this._layers, i;
+          for (i = 0; i < layers.length; i++) {
+            var layer = layers[i];
+            var layerData = this.tiledData.layers[layer.layerId];
+            var offsetX = layerData.offsetx || 0;
+            var offsetY = layerData.offsety || 0;
+            layer.position.x = startX * this._tileWidth - ox + offsetX;
+            layer.position.y = startY * this._tileHeight - oy + offsetY;
+          }
+          var tiles = this._priorityTiles, layersData = null;
+          for (i = 0; i < tiles.length; i++) {
+            var sprite = tiles[i];
+            if (sprite.visible === false) { positions.skipped++; continue; }
+            if (layersData === null) layersData = this.tiledData.layers;
+            var tileLayer = layersData[sprite.layerId];
+            var tileOffsetX = tileLayer ? tileLayer.offsetx || 0 : 0;
+            var tileOffsetY = tileLayer ? tileLayer.offsety || 0 : 0;
+            sprite.x = sprite.origX + startX * this._tileWidth - ox + tileOffsetX + sprite.width / 2;
+            sprite.y = sprite.origY + startY * this._tileHeight - oy + tileOffsetY + sprite.height;
+            positions.updated++;
+          }
+        };
+        positions.installed = true;
+        console.log('[omori-perf] yedPriorityPositions installed');
+      }
+      return result;
+    };
   }
 
   if (root.PMJS && root.PMJS.phases && typeof root.PMJS.phases.on === 'function') {

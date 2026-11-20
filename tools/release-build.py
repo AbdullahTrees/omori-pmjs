@@ -187,11 +187,14 @@ def stage_licenses(port, notices, runtime, extra, with_libatomic):
                     stream.write('\n\n===== %s =====\n\n' % source.name)
                 stream.write(source.read_text(encoding='utf-8', errors='replace'))
         rows.append('| `%s` | %s |' % (destination, component))
+    copy_file(SOURCE_ROOT / 'LICENSE', licenses / 'LICENSE-omori-pmjs.txt')
+    rows.append('| `LICENSE-omori-pmjs.txt` | OMORI (PMJS) launcher, runtime patches and converter (MIT) |')
     write_text(licenses / 'LICENSES.md',
                '# Bundled components and licenses\n\n'
                '| File | Component |\n| --- | --- |\n' + '\n'.join(rows) + '\n\n'
                'SDL2, EGL, GLESv2 and the GPU driver are provided by the firmware and are not bundled. '
-               'The port\'s launcher and JavaScript patches are part of this package; their license is not declared yet.\n')
+               'The port\'s own launcher, JavaScript patches and converter are MIT-licensed '
+               '(Copyright (c) 2026 AbdullahTrees; `LICENSE-omori-pmjs.txt`).\n')
     return len(rows)
 
 

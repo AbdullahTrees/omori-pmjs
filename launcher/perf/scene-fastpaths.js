@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 // Scene and window fast paths for OMORI on slow hardware. Game files stay byte-identical.
 //
 // Loaded like launcher/omori-performance.js (PMJS: `--patch launcher/perf/scene-fastpaths.js`, installs

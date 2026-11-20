@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 AbdullahTrees. Part of OMORI (PMJS): https://github.com/AbdullahTrees/omori-pmjs
 'use strict';
 // PMJS runtime patch (`--patch launcher/pmjs/character-frames.js`): fast path for OMORI's character
 // frame composition (Omori BASE single frames, Custom_Character_Rectangles, ExtraMovementFrames over
