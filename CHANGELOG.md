@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.1
+
+- Memory guard restored in the runtime (missing from v0.8.0): low-memory mode, safety net and memory log work again; fixes freezes after loading a save on 1 GB devices
+- Critical memory cleanups that free little back off (doubling, up to 60 s) instead of repeating every 6 s
+- Off-screen characters whose image changed no longer pop in late
+- Runtime: local branch `release/v0.8.1` `73102a4` = `release/v0.8.0` + `pr/memory-guard` + cull back-off
+
 ## v0.8.0
 
 - Maps faster: off-screen weather culling and new logic caches (map 92 41 -> 60 fps, Rain Town 31 -> 45, walking 39 -> 51)

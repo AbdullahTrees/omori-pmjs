@@ -42,12 +42,17 @@
     .indexOf('emptyEventSkip') < 0;
   // Per-frame counts of why a sprite update took the full path (gate-fail reasons) — the
   // offscreen counter alone cannot say which gate keeps a sprite on the expensive path.
-  stats.gate = { noPlain: 0, fresh: 0, kind: 0, busy: 0, label: 0, onscreen: 0 };
+  stats.gate = { noPlain: 0, fresh: 0, kind: 0, busy: 0, label: 0, stale: 0, onscreen: 0 };
   // No apron past the sprite's true extent: a sprite that crosses onto the screen takes the full
-  // update path the same frame (sprite updates run before rendering), so its frame and bitmap are
-  // ready exactly when its pixels can first appear. Bitmaps need no load lead —
-  // Aetherflow_PreloadEverything keeps the character sheets resident — and skipEvent keeps the
-  // position live, so no ghost can linger either.
+  // update path the same frame (sprite updates run before rendering). That only holds while the
+  // sprite already presents its character's current image (presentationCurrent): the extent test
+  // reads the frame of the last full update. When the character's image changes off screen (a page
+  // switch, setImage), or the sheet was still loading at the last full update (frame 0x0), the
+  // sprite takes the full update path wherever it is, exactly as in vanilla, so the new sheet is
+  // requested and decoded off screen and the frame is real before any pixel can show. Without this
+  // the sprite drew its old image (or nothing) and popped in late on screen; the sheet load only
+  // started once it was visible, which on a slow, low-memory device (cache culled) is long.
+  // skipEvent keeps the position live, so no ghost can linger either.
   // True while Spriteset_Map.update runs; plainView when the map is drawn unscaled and unshaken.
   var inSpriteset = false, plainView = false;
 
@@ -124,11 +129,29 @@
     if (sprite.visible) sprite.visible = false;
   }
 
+  // True when the sprite's last full update left it drawing exactly what its character shows now:
+  // same sheet, index and tile (Sprite_Character.updateBitmap's own change test), the sheet decoded,
+  // and a real frame. A bush depth draws through the half-body children and leaves the sprite's own
+  // frame 0 wide; their frame width is the pattern width.
+  function presentationCurrent(sprite, character) {
+    var bitmap = sprite.bitmap, frame = sprite._frame;
+    if (sprite._characterName !== character.characterName() || sprite._tileId !== character.tileId() ||
+        sprite._characterIndex !== character.characterIndex() || !bitmap || !bitmap.isReady() ||
+        !(frame.height > 0)) return false;
+    return frame.width > 0 || frameWidth(sprite) > 0;
+  }
+
+  function frameWidth(sprite) {
+    var width = sprite._frame.width;
+    if (width > 0 || !(sprite._bushDepth > 0) || !sprite._upperBody) return width;
+    return sprite._upperBody._frame.width;
+  }
+
   // True when no pixel of the sprite can be on screen. The sprite's pixels span
   // [x-hw, x+hw] x [y-h, y] (Sprite_Character anchors at 0.5, 1).
   function offscreen(sprite, character) {
     var frame = sprite._frame, scale = Math.max(Math.abs(sprite.scale.x), Math.abs(sprite.scale.y), 1);
-    var hw = frame.width * scale * 0.5, h = frame.height * scale;
+    var hw = frameWidth(sprite) * scale * 0.5, h = frame.height * scale;
     var x = character.screenX(), y = character.screenY();
     return x + hw < 0 || x - hw > Graphics.width ||
            y < 0 || y - h > Graphics.height;
@@ -179,7 +202,8 @@
         return;
       }
       if (stats.enabled && inSpriteset && plainView && this._omoriUpdated && character instanceof Game_Event &&
-          !busy(this, character) && labelAllowsSkip(this) && offscreen(this, character)) {
+          !busy(this, character) && labelAllowsSkip(this) && presentationCurrent(this, character) &&
+          offscreen(this, character)) {
         skipEvent(this);
         stats.offscreen++;
         return;
@@ -190,6 +214,7 @@
         else if (!(character instanceof Game_Event)) stats.gate.kind++;
         else if (busy(this, character)) stats.gate.busy++;
         else if (!labelAllowsSkip(this)) stats.gate.label++;
+        else if (!presentationCurrent(this, character)) stats.gate.stale++;
         else stats.gate.onscreen++;                 // passed every gate but on screen
       }
       this._omoriUpdated = true;
