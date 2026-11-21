@@ -5,6 +5,7 @@
 - Memory guard restored in the runtime (missing from v0.8.0): low-memory mode, safety net and memory log work again; fixes freezes after loading a save on 1 GB devices
 - Critical memory cleanups that free little back off (doubling, up to 60 s) instead of repeating every 6 s
 - Off-screen characters whose image changed no longer pop in late
+- GAME INPUT TYPE defaults to GAMEPAD (controller button hints); a saved KEYBOARD choice is kept
 - Runtime: local branch `release/v0.8.1` `73102a4` = `release/v0.8.0` + `pr/memory-guard` + cull back-off
 
 ## v0.8.0

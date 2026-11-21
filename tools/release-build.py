@@ -361,7 +361,7 @@ def main():
 
         patches = port / 'patches'
         patches.mkdir(parents=True)
-        for name in ('omori-performance.js', 'omori-fps-log.js'):
+        for name in ('omori-performance.js', 'omori-fps-log.js', 'port-defaults.js'):
             copy_file(repo / 'launcher' / name, patches / name)
         copy_file(repo / 'launcher/pmjs/character-frames.js', patches / 'character-frames.js')
 

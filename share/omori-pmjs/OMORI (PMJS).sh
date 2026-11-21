@@ -172,8 +172,10 @@ if [ ! -f "$GAME/index.html" ]; then
   fi
 fi
 
-# Sprite-update culling and character-frame composition; PMJS_PERF=0 disables both.
 PATCHES=()
+# Port settings defaults (controller hints on); OMORI_PORT_DEFAULTS=0 disables.
+PATCHES+=(--patch "$GAMEDIR/patches/port-defaults.js")
+# Sprite-update culling and character-frame composition; PMJS_PERF=0 disables both.
 [ "${PMJS_PERF:-1}" = 0 ] || PATCHES+=(--patch "$GAMEDIR/patches/omori-performance.js" --patch "$GAMEDIR/patches/character-frames.js")
 # Game-side fast paths; the release build sets the default.
 if [ "${PMJS_PERF_EXTRA:-@PERF_EXTRA_DEFAULT@}" = 1 ]; then
