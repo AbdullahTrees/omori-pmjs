@@ -50,7 +50,13 @@ The first launch converts the game files and prepares an image/map cache. It tak
 
 The launcher writes `omori-pmjs/log.txt` and keeps the previous run as `log.prev.txt`. If neither exists, the launcher could not find the port folder: check that `OMORI (PMJS).sh` and `omori-pmjs/` are in the locations above and that the whole ZIP was extracted (do not launch the `.sh` from inside the ZIP). In that case it also writes `OMORI-PMJS-launch.log` next to the `.sh`. The first log lines list the kernel, device model, libraries and GL context.
 
-Send `log.txt` and `log.prev.txt` when reporting a failure. A missing key or `appinfo.vdf` is reported by name during the first-launch conversion.
+Send `log.txt` and `log.prev.txt` when reporting a failure, plus the newest `logs/memory-*.log` if the device was in low-memory mode. A missing key or `appinfo.vdf` is reported by name during the first-launch conversion.
+
+## Memory and settings
+
+- **Low-memory mode.** On devices with less than 700 MB of memory available at launch (1 GB handhelds such as the R36S), the launcher turns on low-memory mode. The runtime then frees unused cached images earlier and writes one line per second to `omori-pmjs/logs/memory-*.log` (the four newest are kept). An empty file named `low-memory-mode` in `omori-pmjs/` forces it on; one named `normal-memory-mode` forces it off. In every mode, a safety net frees memory when the device runs critically low. `log.txt` shows the chosen mode in its `[launcher] memory mode=` line.
+- **Controller button hints.** OPTIONS > GENERAL > GAME INPUT TYPE starts on GAMEPAD, so hints show controller buttons. A saved KEYBOARD choice is kept, and RESTORE DEFAULT SETTINGS returns to GAMEPAD. Set `OMORI_PORT_DEFAULTS=0` for the game's own default.
+- **Performance patches.** `PMJS_PERF=0` turns off sprite culling and character-frame composition, `PMJS_PERF_EXTRA=0` the game-side fast paths in `perf/`, and `OMORI_PERF_DISABLE=<item>[,<item>]` single fast paths (for example `mainLoopPacing` for the stock game timing).
 
 ## Steam decryption key
 
@@ -79,12 +85,12 @@ This package contains no key.
 
 ## Building the release
 
-The runtime is PMJS for Linux ARM64. Build it on a Linux host:
+The runtime is PMJS for Linux ARM64. Releases since v0.8.0 use upstream `bbbreaddd/pmjs` at `515ebe6` plus the port's own runtime branches (performance, preparation cache, video, memory guard); each ZIP's `manifest.json` records the exact runtime commit. An upstream runtime builds on a Linux host with:
 
 ```bash
 git clone https://github.com/bbbreaddd/pmjs.git
 cd pmjs
-git checkout d551972
+git checkout 515ebe6
 python3 tools/dependencies.py --jobs 4
 ./build.sh --target arm64 --jobs 12
 ```
@@ -94,9 +100,9 @@ The runtime is written to `dist/pmjs-arm64`. The 64-bit Linux build needs Python
 Build and publish a release from this repository:
 
 ```bash
-tools/release.sh prepare --version v0.7.2 --changes "Fixed X; Improved Y"
-# device-test share/out/OMORI-PMJS-v0.7.2.zip and write a receipt
-tools/release.sh publish --version v0.7.2 --receipt receipt.json
+tools/release.sh prepare --version v0.8.2 --changes "Fixed X; Improved Y"
+# device-test share/out/OMORI-PMJS-v0.8.2.zip and write a receipt
+tools/release.sh publish --version v0.8.2 --receipt receipt.json
 ```
 
 `prepare` commits the notes and changelog, pushes `main`, builds the ZIP and checks it. `publish` creates the Latest GitHub release with the versioned ZIP, the stable `OMORI-PMJS.zip`, the checksum, manifest, screenshot and device receipt. See [RELEASE.md](RELEASE.md) for the short playbook and [docs/RELEASING.md](docs/RELEASING.md) for the full process and the receipt format.
@@ -116,7 +122,7 @@ It stages the launcher, metadata, runtime, patches, converter, licenses and an e
 
 | Path | Contents |
 | --- | --- |
-| `launcher/` | Game-side JavaScript patches loaded by PMJS: sprite culling, character frames, fps log, experimental fast paths |
+| `launcher/` | Game-side JavaScript patches loaded by PMJS: sprite culling, character frames, fps log, port settings defaults (`port-defaults.js`), game-side fast paths (`perf/`) |
 | `share/omori-pmjs/OMORI (PMJS).sh` | PortMaster launcher template |
 | `share/omori-pmjs/metadata/` | `port.json`, `gameinfo.xml`, `README.md`, `testing_thread.txt` |
 | `share/omori-pmjs/licenses-extra/` | License texts not already in the PMJS runtime notices |

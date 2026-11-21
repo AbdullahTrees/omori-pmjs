@@ -6,7 +6,9 @@ OMORI is a commercial game. This package does not include its game files. Copy t
 
 The Steam release is encrypted and this package contains no key. The launcher looks for the key in `gamedata/omori-key.txt` (a template is included; replace its whole contents), in `gamedata/appinfo.vdf`, in a `.bat`, `.sh` or `.cmd` launch script next to the game, or in the `OMORI_KEY` environment variable. If your install has no launch script, copy Steam's `appcache/appinfo.vdf` (on Windows, `C:\Program Files (x86)\Steam\appcache\appinfo.vdf`) into `gamedata/` before the first launch. A copy of the game that is already decrypted needs no key.
 
-If it does not start, read `ports/omori-pmjs/log.txt`; `log.prev.txt` keeps the previous run. If neither exists, the launcher did not find the `omori-pmjs/` folder: keep it together with `OMORI (PMJS).sh` (on muOS the `.sh` goes in `/mnt/mmc/ROMS/Ports/` and the folder in `/mnt/mmc/ports/`; on ArkOS/dArkOS both go in `/roms/ports/`). The launcher then writes `OMORI-PMJS-launch.log` next to the `.sh`.
+If it does not start, read `ports/omori-pmjs/log.txt`; `log.prev.txt` keeps the previous run. If neither exists, the launcher did not find the `omori-pmjs/` folder: keep it together with `OMORI (PMJS).sh` (on muOS the `.sh` goes in `/mnt/mmc/ROMS/Ports/` and the folder in `/mnt/mmc/ports/`; on ArkOS/dArkOS both go in `/roms/ports/`). The launcher then writes `OMORI-PMJS-launch.log` next to the `.sh`. When reporting a failure, include `log.txt`, `log.prev.txt` and the newest file in `logs/`.
+
+On 1 GB devices (less than 700 MB available at launch) the launcher turns on low-memory mode: unused cached images are freed earlier and a per-second memory log is written to `ports/omori-pmjs/logs/`. An empty `low-memory-mode` or `normal-memory-mode` file in `ports/omori-pmjs/` forces it on or off. Button hints show controller buttons by default (OPTIONS > GENERAL > GAME INPUT TYPE).
 
 ## Controls
 
@@ -23,16 +25,16 @@ If it does not start, read `ports/omori-pmjs/log.txt`; `log.prev.txt` keeps the 
 
 ## Compile
 
-The runtime is PMJS for Linux ARM64. This release was built from the public `fix/sdl-gl-context` branch at `ec9235d`: `test/device-integration-3` at `643396e` (upstream `bbbreaddd/pmjs` at `d551972` plus the port's performance, preparation and compatibility commits) and the SDL/EGL presentation-context fix. The source is at https://github.com/AbdullahTrees/pmjs/tree/fix/sdl-gl-context; the exact commit and payload hashes are recorded in `manifest.json`.
+The runtime is PMJS for Linux ARM64: upstream `bbbreaddd/pmjs` at `515ebe6` plus the port's own runtime branches (performance, preparation cache, video, memory guard). The exact runtime commit and payload hashes are recorded in `manifest.json`.
 
 ### Runtime
 
-Use a 64-bit Linux build host. The build needs Python 3, CMake, Ninja, Clang/LLVM 20 and the development packages listed in PMJS's build guide.
+Use a 64-bit Linux build host. The build needs Python 3, CMake, Ninja, Clang/LLVM 20 and the development packages listed in PMJS's build guide. An upstream runtime builds with:
 
 ```bash
-git clone https://github.com/AbdullahTrees/pmjs.git
+git clone https://github.com/bbbreaddd/pmjs.git
 cd pmjs
-git checkout ec9235d
+git checkout 515ebe6
 python3 tools/dependencies.py --jobs 4
 ./build.sh --target arm64 --jobs 12
 ```
@@ -41,4 +43,4 @@ The runtime is written to `dist/pmjs-arm64`. It bundles Node, FFmpeg and Skia; S
 
 ### Game-side patches
 
-`patches/omori-performance.js`, `patches/character-frames.js`, `patches/omori-fps-log.js` and the modules in `perf/` are plain JavaScript loaded by PMJS with `--patch` at launch. They ship as source in this package; there is no compilation step.
+`patches/omori-performance.js`, `patches/character-frames.js`, `patches/omori-fps-log.js`, `patches/port-defaults.js` and the modules in `perf/` are plain JavaScript loaded by PMJS with `--patch` at launch. They ship as source in this package; there is no compilation step.
