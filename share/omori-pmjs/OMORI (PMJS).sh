@@ -201,7 +201,7 @@ export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:-131072}"
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
 # Memory. Always: the runtime's memory guard as a safety net (culls only if available memory
 # drops below PMJS_MEMORY_CRITICAL_MB). Low-memory mode, for 1 GB devices whose OS leaves little
-# free (e.g. dArkOS with EmulationStation resident): caps RPG Maker's image cache, culls earlier
+# free (e.g. dArkOS with EmulationStation resident): culls earlier
 # (unused cached images dropped, a full collection, allocator trim) and keeps a per-second memory
 # log in logs/. It can cause brief reload stutters, so it stays off on devices with room.
 #   force on:  create a file named low-memory-mode next to this port's files
@@ -221,7 +221,9 @@ if [ "$LOW_MEMORY" = 1 ]; then
   export PMJS_MEMORY_LOG="${PMJS_MEMORY_LOG:-$GAMEDIR/logs/memory-$(date +%Y%m%d-%H%M%S).log}"
   export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-450}"
   export PMJS_MEMORY_CRITICAL_MB="${PMJS_MEMORY_CRITICAL_MB:-200}"
-  export PMJS_IMAGE_CACHE_MAX_PIXELS="${PMJS_IMAGE_CACHE_MAX_PIXELS:-10000000}"
+  # No image-cache cap: OMORI asks for 80M px and a 10M cap evicted ~65 MB of images at once
+  # ~2 s after a map load, which coincided with intermittent device freezes on map 92
+  # (2026-11-21). PMJS_IMAGE_CACHE_MAX_PIXELS still works when set by hand.
 else
   export PMJS_MEMORY_CULL_MB="${PMJS_MEMORY_CULL_MB:-0}"
   export PMJS_MEMORY_CRITICAL_MB="${PMJS_MEMORY_CRITICAL_MB:-120}"

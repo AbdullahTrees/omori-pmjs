@@ -2,7 +2,8 @@
 
 ## v0.8.1
 
-- Memory guard restored in the runtime (missing from v0.8.0): low-memory mode, safety net and memory log work again; fixes freezes after loading a save on 1 GB devices
+- Memory guard restored in the runtime (missing from v0.8.0): low-memory mode, safety net and memory log work again
+- Low-memory mode no longer caps the image cache at 10M px (its mass eviction after map loads coincided with rare freezes)
 - Critical memory cleanups that free little back off (doubling, up to 60 s) instead of repeating every 6 s
 - Off-screen characters whose image changed no longer pop in late
 - GAME INPUT TYPE defaults to GAMEPAD (controller button hints); a saved KEYBOARD choice is kept
